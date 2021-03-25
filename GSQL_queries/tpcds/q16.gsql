@@ -1,0 +1,79 @@
+USE GRAPH tpcds
+
+DROP QUERY q16
+
+CREATE QUERY q16() FOR GRAPH tpcds {
+OrAccum @ca_filter, @cc_filter;
+SetAccum<int> @whouses, @@order_count;
+SumAccum<double> @@total_shipping_cost, @@total_net_profit;
+
+//Reduction
+Start2 = {customer_address.*};
+
+    Start2 = SELECT src
+             FROM Start2:src-(ca_address_sk)->:tgt
+             WHERE src.ca_state == "GA"
+             ACCUM tgt.@ca_filter = true
+                  ;
+
+Start3 = {call_center.*};
+
+    Start3 = SELECT src
+             FROM Start3:src-(cc_call_center_sk)->:tgt
+             WHERE src.cc_county == "Williamson County"
+             ACCUM tgt.@cc_filter = true
+             ;
+
+Start = {attribute_date.*};
+
+    tupleV (ANY) = SELECT tgt
+                  FROM Start:src- (d_date)->:tgt
+                  WHERE src.id >= to_datetime("2002-02-01") AND src.id <= to_datetime("2002-04-02")
+                 ;
+
+    attrV (ANY) = SELECT tgt
+            FROM tupleV:src- (d_date_sk)->:tgt
+             ;
+        
+    tupleV = SELECT tgt
+             FROM attrV:src- (cs_ship_date_sk)->:tgt
+             ;
+
+    tupleV = SELECT src
+             FROM tupleV:src - (cs_ship_addr_sk) -> :tgt
+             WHERE tgt.@ca_filter
+             ;
+    
+    tupleV = SELECT src
+             FROM tupleV:src - (cs_call_center_sk) -> :tgt
+             WHERE tgt.@cc_filter
+             ;
+
+    tupleV = SELECT src
+             FROM tupleV:src - (cs_order_number) -> :tgt
+             WHERE src.cs_warehouse_sk != -1 AND tgt.outdegree("cr_order_number") == 0
+             ;
+   
+    attrV = SELECT tgt
+            FROM tupleV:src - (cs_order_number) -> :tgt
+            ACCUM tgt.@whouses += src.cs_warehouse_sk
+            ;
+    
+    attrV = SELECT src
+            FROM attrV:src - (cs_order_number) -> :tgt
+            WHERE tgt.cs_warehouse_sk != -1
+            ACCUM src.@whouses += tgt.cs_warehouse_sk
+            ;
+
+//Collection
+    tupleV = SELECT src
+             FROM tupleV:src - (cs_order_number) -> :tgt
+             WHERE tgt.@whouses.size() > 1
+             ACCUM @@order_count += src.cs_order_number,
+                   CASE WHEN src.cs_ext_ship_cost != -1000000.0 THEN @@total_shipping_cost += src.cs_ext_ship_cost END,
+                   CASE WHEN src.cs_net_profit != -1000000.0 THEN @@total_net_profit += src.cs_net_profit END;
+
+
+}
+
+INSTALL QUERY q16

@@ -1,0 +1,53 @@
+USE GRAPH tpcds
+
+DROP QUERY q41
+
+CREATE QUERY q41() FOR GRAPH tpcds {
+SumAccum<int> @cnt;
+
+Start = {item.*};
+
+attr = SELECT tgt
+       FROM Start:src - (i_manufact) -> :tgt
+       WHERE src.i_manufact_id >= 738 AND src.i_manufact_id <= 778
+       ;
+
+attr = SELECT src
+       FROM attr:src - (i_manufact) -> :tgt
+       WHERE 
+               ( (tgt.i_category == "Women" AND (tgt.i_color == "powder" OR tgt.i_color == "khaki") AND
+                 (tgt.i_units == "Ounce" OR tgt.i_units == "Oz") AND (tgt.i_size == "medium" Or tgt.i_size == "extra large")) OR
+                 (tgt.i_category == "Women" AND (tgt.i_color == "brown" OR tgt.i_color == "honeydew") AND
+                 (tgt.i_units == "Bunch" OR tgt.i_units == "Ton") AND (tgt.i_size == "N/A" Or tgt.i_size == "small")) OR
+                 
+                 (tgt.i_category == "Men" AND (tgt.i_color == "floral" OR tgt.i_color == "deep") AND
+                 (tgt.i_units == "N/A" OR tgt.i_units == "Dozen") AND (tgt.i_size == "petite" Or tgt.i_size == "large")) OR
+                 (tgt.i_category == "Men" AND (tgt.i_color == "light" OR tgt.i_color == "cornflower") AND
+                 (tgt.i_units == "Box" OR tgt.i_units == "Pound") AND (tgt.i_size == "medium" Or tgt.i_size == "extra large")))
+               OR
+               ( (tgt.i_category == "Women" AND (tgt.i_color == "midnight" OR tgt.i_color == "snow") AND
+                 (tgt.i_units == "Pallet" OR tgt.i_units == "Gross") AND (tgt.i_size == "medium" OR tgt.i_size == "extra large")) OR
+                 (tgt.i_category == "Women" AND (tgt.i_color == "cyan" OR tgt.i_color == "papaya") AND
+                 (tgt.i_units == "Cup" OR tgt.i_units == "Dram") AND (tgt.i_size == "N/A" OR tgt.i_size == "small")) OR
+                 (tgt.i_category == "Men" and (tgt.i_color == "orange" OR tgt.i_color == "frosted") and
+                 (tgt.i_units == "Each" OR tgt.i_units == "Tbl") and (tgt.i_size == "petite" OR tgt.i_size == "large")) OR
+                 (tgt.i_category == "Men" AND (tgt.i_color == "forest" OR tgt.i_color == "ghost") and
+                 (tgt.i_units == "Lb" OR tgt.i_units == "Bundle") and (tgt.i_size == "medium" OR tgt.i_size == "extra large"))) 
+       ACCUM src.@cnt += 1
+       HAVING src.@cnt > 0
+       ;
+
+items = SELECT tgt
+        FROM attr:src - (i_manufact) -> :tgt
+        WHERE tgt.i_manufact_id >= 738 AND tgt.i_manufact_id <= 778
+        ;
+
+attrV = SELECT tgt
+        FROM items:src - (i_product_name) -> :tgt
+        ;
+
+
+}
+
+INSTALL QUERY q41
+

@@ -1,0 +1,44 @@
+USE GRAPH tpcds
+
+DROP QUERY q93
+
+CREATE QUERY q93() FOR GRAPH tpcds {
+SumAccum<double> @sumsales, @@null_sumsales;
+MapAccum<int, int> @items;
+
+Start = {reason.*};
+
+attrV (ANY) = SELECT tgt
+              FROM Start:src- (r_reason_sk)->:tgt
+              WHERE src.r_reason_desc == "reason 28"
+              ;
+
+tupleV (ANY) = SELECT tgt
+               FROM attrV:src- (sr_reason_sk)->:tgt
+               ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (sr_ticket_number)->:tgt
+        ACCUM CASE WHEN src.sr_return_quantity != -1 THEN tgt.@items += (src.sr_item_sk -> src.sr_return_quantity)
+                  ELSE tgt.@items += (src.sr_item_sk -> 0)
+             END
+             ;
+
+tupleV = SELECT tgt
+        FROM attrV:src- (ss_ticket_number)->:tgt
+        WHERE src.@items.containsKey(tgt.ss_item_sk) 
+        ACCUM CASE WHEN tgt.ss_quantity != -1 AND tgt.ss_sales_price > -1000000.0 THEN 
+                      CASE WHEN tgt.ss_customer_sk == -1 THEN @@null_sumsales += (tgt.ss_quantity - src.@items.get(tgt.ss_item_sk))*tgt.ss_sales_price 
+                           ELSE tgt.@sumsales = (tgt.ss_quantity - src.@items.get(tgt.ss_item_sk))*tgt.ss_sales_price 
+                      END
+                 END
+              ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (ss_customer_sk)->:tgt
+        ACCUM tgt.@sumsales += src.@sumsales
+        ;
+
+}
+
+INSTALL QUERY q93

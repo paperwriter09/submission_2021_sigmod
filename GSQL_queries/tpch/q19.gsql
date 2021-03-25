@@ -1,0 +1,42 @@
+USE GRAPH tpch
+
+DROP QUERY q19
+
+CREATE QUERY q19() FOR GRAPH tpch {
+SumAccum<double> @@revenue;
+OrAccum @brand12, @brand23, @brand34;
+
+
+Start = {part.*};
+
+// Reduction
+    Start = SELECT src
+            FROM Start:src
+            WHERE (src.P_BRAND == "Brand#12" OR src.P_BRAND == "Brand#23" OR src.P_BRAND == "Brand#34") AND src.P_SIZE <= 15
+            ;
+
+    attrV = SELECT tgt
+            FROM Start:src - (P_PARTKEY:e) -> :tgt
+            ACCUM CASE
+                WHEN src.P_BRAND == "Brand#12" AND (src.P_CONTAINER=="SM CASE" OR src.P_CONTAINER=="SM BOX" OR src.P_CONTAINER=="SM PACK" OR src.P_CONTAINER=="SM PKG") AND src.P_SIZE <= 5 THEN tgt.@brand12 = true
+                WHEN src.P_BRAND == "Brand#23" AND (src.P_CONTAINER=="MED BAG" OR src.P_CONTAINER=="MED BOX" OR src.P_CONTAINER=="MED PACK" OR src.P_CONTAINER=="MED PKG") AND src.P_SIZE <= 10 THEN tgt.@brand23 = true
+                WHEN src.P_BRAND == "Brand#34" AND (src.P_CONTAINER=="LG CASE" OR src.P_CONTAINER=="LG BOX" OR src.P_CONTAINER=="LG PACK" OR src.P_CONTAINER=="LG PKG") AND src.P_SIZE <= 15 THEN tgt.@brand34 = true
+            END
+            HAVING tgt.@brand12 OR tgt.@brand23 OR tgt.@brand34
+            ;
+
+// Collection
+    attrV = SELECT src
+            FROM attrV:src - (L_PARTKEY:e) -> :tgt
+            WHERE (tgt.L_SHIPMODE=="AIR" OR tgt.L_SHIPMODE=="AIR REG") AND tgt.L_SHIPINSTRUCT == "DELIVER IN PERSON" AND tgt.L_QUANTITY <= 30
+            ACCUM CASE 
+                WHEN src.@brand12 AND tgt.L_QUANTITY <= 11 THEN @@revenue += tgt.L_EXTENDEDPRICE * (1 - tgt.L_DISCOUNT)
+                WHEN src.@brand23 AND tgt.L_QUANTITY >= 10 AND tgt.L_QUANTITY <= 20 THEN @@revenue += tgt.L_EXTENDEDPRICE * (1 - tgt.L_DISCOUNT)
+                WHEN src.@brand34 AND tgt.L_QUANTITY >= 20 AND tgt.L_QUANTITY <= 30 THEN @@revenue += tgt.L_EXTENDEDPRICE * (1 - tgt.L_DISCOUNT) 
+            END
+            ;
+
+
+}
+
+INSTALL QUERY q19

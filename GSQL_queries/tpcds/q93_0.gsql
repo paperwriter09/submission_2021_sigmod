@@ -1,0 +1,44 @@
+USE GRAPH tpcds
+
+DROP QUERY q93_0
+
+CREATE QUERY q93_0() FOR GRAPH tpcds {
+SumAccum<double> @sumsales, @@null_sumsales;
+SumAccum<int> @return_qty;
+
+Start = {reason.*};
+
+attrV (ANY) = SELECT tgt
+              FROM Start:src- (r_reason_sk)->:tgt
+              WHERE src.r_reason_desc == "reason 28"
+              ;
+
+tuple_sr = SELECT tgt
+           FROM attrV:src- (sr_reason_sk)->:tgt
+           ;
+
+
+tuple_ss = SELECT tgt
+           FROM tuple_sr:src- (ss_sr_ticket_item)->:tgt
+           ACCUM CASE WHEN src.sr_return_quantity != -1 THEN tgt.@return_qty = src.sr_return_quantity END
+           ;
+
+tuple_ss = SELECT src
+           FROM tuple_ss:src
+           ACCUM CASE WHEN src.ss_quantity != -1 AND src.ss_sales_price > -1000000.0 THEN 
+                      CASE WHEN src.ss_customer_sk == -1 THEN @@null_sumsales += (src.ss_quantity - src.@return_qty)*src.ss_sales_price 
+                           ELSE src.@sumsales = (src.ss_quantity - src.@return_qty)*src.ss_sales_price 
+                      END
+                 END
+          ;
+
+
+attrV = SELECT tgt
+        FROM tuple_ss:src- (ss_customer_sk)->:tgt
+        ACCUM tgt.@sumsales += src.@sumsales
+        ;
+
+
+}
+
+INSTALL QUERY q93_0

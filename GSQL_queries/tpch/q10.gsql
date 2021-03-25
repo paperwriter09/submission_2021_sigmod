@@ -1,0 +1,68 @@
+USE GRAPH tpch
+
+DROP QUERY q10
+
+CREATE QUERY q10() FOR GRAPH tpch {
+SumAccum<double> @revenue;
+SumAccum<string> @nation;
+
+Start = {attribute_date.*};
+
+// Reduction
+    Start = SELECT src
+            FROM Start:src
+            WHERE src.id >= to_datetime("1993-10-01") AND src.id < to_datetime("1994-01-01")
+            ;
+
+    tupleV = SELECT tgt
+             FROM Start:src- (O_ORDERDATE)->:tgt
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src- (O_ORDERKEY)->:tgt
+                  ;
+
+// Collection
+
+    attrV = SELECT src
+            FROM attrV:src-(L_ORDERKEY)->:tgt
+            WHERE tgt.L_RETURNFLAG == "R"
+            ACCUM src.@revenue += tgt.L_EXTENDEDPRICE * (1 - tgt.L_DISCOUNT)
+            ;
+
+    // Customer and Order tuple vertices
+    tupleV  = SELECT tgt
+              FROM attrV:src-(O_ORDERKEY)->:tgt
+              ACCUM tgt.@revenue = src.@revenue
+              POST-ACCUM src.@revenue = 0
+              ;
+
+    // CustomerKey attribute vertices
+    attrV  = SELECT tgt
+             FROM tupleV:src - (O_CUSTKEY) -> :tgt
+             ACCUM tgt.@revenue += src.@revenue
+             ;
+
+    // Customer and Order tuple vertices
+    tupleV = SELECT tgt
+             FROM attrV:src - (C_CUSTKEY) -> :tgt
+             ACCUM tgt.@revenue = src.@revenue
+             ;
+
+Start2 = {nation.*};
+
+     attrV = SELECT tgt
+             FROM Start2:src - (N_NATIONKEY) -> :tgt
+             ACCUM tgt.@nation += src.N_NAME
+             ;
+
+    // Customer and Order tuple vertices
+    tupleV  = SELECT src
+             FROM tupleV:src - (C_NATIONKEY) -> :tgt
+             ACCUM src.@nation = tgt.@nation
+             ;
+
+
+}
+
+INSTALL QUERY q10

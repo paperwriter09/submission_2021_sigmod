@@ -1,0 +1,88 @@
+USE GRAPH tpch
+
+DROP QUERY q8_0
+
+CREATE QUERY q8_0() FOR GRAPH tpch {
+typedef Tuple<int YEAR, double SHARE> resultTuple;
+MapAccum<int, SumAccum<double>> @@regionVolume, @@brazilVolume; //<year, totalVolume> for region
+ListAccum<resultTuple> @@result;
+OrAccum @P_filter, @brazil;
+SumAccum<int> @year;
+SetAccum<int> @@customers, @@brazil_supp;
+
+Start = {region.*};
+
+// Reduction
+Start = SELECT src
+         FROM Start:src
+         WHERE src.R_NAME == "AMERICA"
+         ;
+
+
+    attrV = SELECT tgt
+            FROM Start:src - (R_REGIONKEY) -> :tgt
+                  ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (N_REGIONKEY) -> :tgt
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (N_NATIONKEY:e) -> :tgt
+            ACCUM CASE WHEN src.N_NAME == "BRAZIL" THEN tgt.@brazil = true END
+            ;
+
+    attrV = SELECT src
+            FROM attrV:src - (C_NATIONKEY:e) -> :tgt
+            ACCUM @@customers += tgt.C_CUSTKEY
+            ;
+
+   attrV = SELECT src
+           FROM attrV:src - (S_NATIONKEY:e) -> :tgt
+           WHERE src.@brazil
+           ACCUM @@brazil_supp += tgt.S_SUPPKEY
+            ;
+
+
+Start2 = {part.*};
+    Start2 = SELECT src
+             FROM Start2:src
+             WHERE src.P_TYPE == "ECONOMY ANODIZED STEEL"
+             ;
+    
+    attrV = SELECT tgt
+            FROM Start2:src - (P_PARTKEY:e) -> :tgt
+            ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (L_PARTKEY:e) -> :tgt
+             ACCUM tgt.@P_filter = true
+             ;
+
+    attrV = SELECT tgt
+             FROM tupleV:src - (L_ORDERKEY:e) -> :tgt
+            ;
+    
+    attrV = SELECT src
+            FROM attrV:src - (O_ORDERKEY:e) -> :tgt
+            WHERE tgt.O_ORDERDATE >= to_datetime("1995-01-01") AND tgt.O_ORDERDATE <= to_datetime("1996-12-31")
+                   AND @@customers.contains(tgt.O_CUSTKEY)
+            ACCUM src.@year = year(tgt.O_ORDERDATE)
+            ;
+
+    attrV = SELECT src
+             FROM attrV:src - (L_ORDERKEY:e) -> :tgt
+             WHERE tgt.@P_filter
+             ACCUM @@regionVolume += (src.@year -> tgt.L_EXTENDEDPRICE * (1 - tgt.L_DISCOUNT))
+                   , CASE WHEN @@brazil_supp.contains(tgt.L_SUPPKEY) THEN @@brazilVolume += (src.@year -> tgt.L_EXTENDEDPRICE * (1 - tgt.L_DISCOUNT)) END
+            ;
+
+FOREACH (k,v) in @@brazilVolume DO
+   @@result += resultTuple(k, v/@@regionVolume.get(k));
+END;
+
+
+
+}
+
+INSTALL QUERY q8_0

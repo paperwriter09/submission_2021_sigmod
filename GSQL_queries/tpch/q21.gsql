@@ -1,0 +1,77 @@
+USE GRAPH tpch
+
+DROP QUERY q21
+
+CREATE QUERY q21() FOR GRAPH tpch
+{
+ListAccum<int> @setSupp, @setSuppFail;
+SumAccum<int> @num_wait;
+OrAccum @nation;
+
+Start = {nation.*};
+
+// Reduction
+
+    attrV = SELECT tgt
+            FROM Start:src - (N_NATIONKEY:e) -> :tgt
+            WHERE src.N_NAME == "SAUDI ARABIA"
+                  ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (S_NATIONKEY:e) -> :tgt
+             ACCUM tgt.@nation = true
+                  ;
+
+    attrV  = SELECT tgt
+              FROM tupleV:src - (S_SUPPKEY:e) -> :tgt
+              ;
+
+    tupleV = SELECT tgt
+              FROM attrV:src - (L_SUPPKEY:e) -> :tgt
+              WHERE tgt.L_RECEIPTDATE > tgt.L_COMMITDATE
+              ACCUM tgt.@nation = true
+              ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (L_ORDERKEY:e) - :tgt
+            ;
+
+    attrV  = SELECT src
+             FROM attrV:src - (O_ORDERKEY) - :tgt
+             WHERE tgt.O_ORDERSTATUS == "F"
+             ;
+
+attrV = SELECT src
+            FROM attrV:src - (L_ORDERKEY:e) - :tgt
+            WHERE tgt.L_RECEIPTDATE > tgt.L_COMMITDATE
+            ACCUM src.@setSuppFail += tgt.L_SUPPKEY 
+            HAVING src.@setSuppFail.size() == 1    // the only failed supplier condition check
+             ;
+
+    attrV = SELECT src
+            FROM attrV:src - (L_ORDERKEY:e) - :tgt
+            ACCUM src.@setSupp += tgt.L_SUPPKEY 
+            HAVING src.@setSupp.size() > 1        //multi supplier condition check
+            ;
+
+  
+// Collection
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (L_ORDERKEY:e) -> :tgt
+             WHERE tgt.@nation
+            ;
+
+   attrV = SELECT tgt
+            FROM tupleV:src - (L_SUPPKEY:e) -> :tgt
+            ACCUM tgt.@num_wait += 1
+            ;
+
+    tupleV = SELECT tgt
+            FROM attrV:src - (S_SUPPKEY:e) -> :tgt
+            ACCUM tgt.@num_wait = src.@num_wait
+            ;
+
+}
+
+INSTALL QUERY q21

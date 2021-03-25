@@ -1,0 +1,86 @@
+USE GRAPH tpch
+
+DROP QUERY q7_0
+
+CREATE QUERY q7_0() FOR GRAPH tpch {
+GroupByAccum<string S_NATION, string C_NATION, int SHIPYEAR, SumAccum<double> revenue> @@result;
+MapAccum<int,string> @@supp;
+SumAccum<string> @nation;
+OrAccum @c_filter;
+
+Start = {nation.*};
+
+
+// Reduction
+Start = SELECT src
+        FROM Start:src
+        WHERE src.N_NAME == "FRANCE" OR src.N_NAME == "GERMANY"
+        ;
+
+
+attrn = SELECT tgt
+        FROM Start:src - (N_NATIONKEY) -> :tgt
+        WHERE src.N_NAME == "FRANCE" OR src.N_NAME == "GERMANY" 
+        ACCUM tgt.@nation = src.N_NAME
+                  ;
+
+    tuple_c = SELECT tgt
+              FROM attrn:src - (C_NATIONKEY) -> :tgt
+              ACCUM tgt.@nation = src.@nation
+              ;
+    
+
+    attrV = SELECT tgt
+            FROM tuple_c:src - (C_CUSTKEY) -> :tgt
+            ACCUM tgt.@nation = src.@nation
+                  , tgt.@c_filter = true
+           ;
+   
+
+   tuple_s = SELECT tgt
+             FROM attrn:src - (S_NATIONKEY) -> :tgt
+             ACCUM @@supp += (tgt.S_SUPPKEY -> src.@nation)
+                    ;
+
+    attrV = SELECT tgt
+            FROM tuple_s:src - (S_SUPPKEY) -> :tgt
+              ;
+
+  tupleV = SELECT tgt
+            FROM attrV:src - (L_SUPPKEY) -> :tgt
+            WHERE tgt.L_SHIPDATE >= to_datetime("1995-01-01") AND tgt.L_SHIPDATE <= to_datetime("1996-12-31")
+            ACCUM tgt.@c_filter = true
+            ;
+
+  
+    attrV = SELECT tgt
+            FROM tupleV:src - (L_ORDERKEY:e) -> :tgt
+            ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (O_ORDERKEY:e) -> :tgt
+             ;
+
+    tupleV = SELECT src
+             FROM tupleV:src - (O_CUSTKEY:e) -> :tgt
+             WHERE tgt.@c_filter
+             ACCUM src.@nation = tgt.@nation
+             ;
+
+   attrV = SELECT tgt
+            FROM tupleV:src - (O_ORDERKEY:e) -> :tgt
+            ACCUM tgt.@nation = src.@nation
+            ;
+
+// Collection
+    tupleV = SELECT src
+             FROM attrV:src - (L_ORDERKEY) -> :tgt
+             WHERE tgt.@c_filter AND src.@nation != @@supp.get(tgt.L_SUPPKEY)
+             ACCUM @@result += (@@supp.get(tgt.L_SUPPKEY),src.@nation,year(tgt.L_SHIPDATE) -> tgt.L_EXTENDEDPRICE * (1 - tgt.L_DISCOUNT))
+           ;
+
+
+}
+
+INSTALL QUERY q7_0
+

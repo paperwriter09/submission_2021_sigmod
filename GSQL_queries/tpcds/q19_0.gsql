@@ -1,0 +1,100 @@
+USE GRAPH tpcds
+
+DROP QUERY q19_0
+
+CREATE QUERY q19_0() FOR GRAPH tpcds {
+typedef Tuple<brand string, brand_id int, manu_id int, manu string> iTuple;
+MapAccum <iTuple, SumAccum<double>> @@result;
+SumAccum<double> @partial_sum;
+SumAccum<string> @s_zip, @ca_zip;
+SetAccum<int> @@dmap;
+
+//Reduction
+Start2 = {date_dim.*};
+
+    Start2 = SELECT src
+            FROM Start2:src
+            WHERE src.d_year == 1998 AND src.d_moy == 11
+            ACCUM @@dmap += src.d_date_sk
+            ;
+
+Start = {item.*};
+
+    attrV (ANY) = SELECT tgt
+                  FROM Start:src - (i_item_sk)->:tgt
+                  WHERE src.i_manager_id == 8
+                  ;
+
+    tupleV (ANY) = SELECT tgt
+                   FROM attrV:src- (ss_item_sk)->:tgt
+                   WHERE @@dmap.contains(tgt.ss_sold_date_sk)
+                   ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(ss_store_sk)->:tgt
+            ;
+
+    attrV = SELECT src
+            FROM attrV:src-(s_store_sk)->:tgt
+            WHERE tgt.s_zip != "NULL"
+            ACCUM src.@s_zip = tgt.s_zip 
+            ;
+
+    tupleV = SELECT src
+             FROM tupleV:src-(ss_store_sk)->:tgt
+             WHERE tgt.@s_zip != ""
+             ACCUM src.@s_zip = tgt.@s_zip
+             ;
+
+   attrV = SELECT tgt
+            FROM tupleV:src-(ss_customer_sk)->:tgt
+            ;
+
+   tuple_c (ANY) = SELECT tgt
+                   FROM attrV:src-(c_customer_sk)->:tgt
+                   ;
+
+   attrV = SELECT tgt
+           FROM tuple_c:src-(c_current_addr_sk)->:tgt
+            ;
+
+   attrV = SELECT src
+            FROM attrV:src-(ca_address_sk)->:tgt
+            WHERE tgt.ca_zip != "NULL"
+            ACCUM src.@ca_zip = tgt.ca_zip
+            ;
+
+   tuple_c = SELECT src
+             FROM tuple_c:src-(c_current_addr_sk)->:tgt
+             WHERE tgt.@ca_zip != ""
+             ACCUM src.@ca_zip = tgt.@ca_zip
+             ;
+
+  attrV = SELECT tgt
+          FROM tuple_c:src-(c_customer_sk)->:tgt
+          ACCUM tgt.@ca_zip = src.@ca_zip
+          ;
+
+  tupleV = SELECT src
+           FROM tupleV:src-(ss_customer_sk)->:tgt
+           WHERE src.@s_zip != tgt.@ca_zip 
+           ;
+
+
+//Collection
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(ss_item_sk)->:tgt
+            ACCUM CASE WHEN src.ss_ext_sales_price > -1000000.0 
+                       THEN tgt.@partial_sum += src.ss_ext_sales_price
+                  END
+            ;
+
+    attrV  = SELECT src
+              FROM attrV:src-(i_item_sk)->:tgt
+              ACCUM @@result += (iTuple(tgt.i_brand,tgt.i_brand_id,tgt.i_manufact_id,tgt.i_manufact) -> src.@partial_sum)
+             ;
+
+}
+
+INSTALL QUERY q19_0

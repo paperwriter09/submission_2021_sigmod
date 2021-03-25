@@ -1,0 +1,92 @@
+USE GRAPH tpcds
+
+DROP QUERY q45
+
+CREATE QUERY q45() FOR GRAPH tpcds {
+typedef Tuple<zip string, city string> caTuple;
+MapAccum <caTuple, SumAccum<double>> @@result;
+SumAccum<double> @sum_sales_price;
+OrAccum @i_filter, @ca_filter;
+
+Start = {date_dim.*};
+
+//Reduction
+
+    attrV (ANY) = SELECT tgt
+                  FROM Start:src - (d_date_sk)->:tgt
+                  WHERE src.d_year == 2001 AND src.d_qoy == 2
+                  ;
+
+    tuple_cs = SELECT tgt
+               FROM attrV:src - (ws_sold_date_sk)->:tgt
+               ;
+
+Start3 = {item.*};
+
+     attrV = SELECT tgt
+             FROM Start3:src-(i_item_id)->:tgt
+             WHERE src.i_item_sk == 2 OR src.i_item_sk == 3 OR src.i_item_sk == 5 OR src.i_item_sk == 7 OR src.i_item_sk == 11 OR src.i_item_sk == 13 OR
+                   src.i_item_sk == 17 OR src.i_item_sk == 19 OR src.i_item_sk == 23 OR src.i_item_sk == 29
+             ;
+
+    tupleV (ANY) = SELECT tgt
+                   FROM attrV:src- (i_item_id)->:tgt
+                   ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(i_item_sk)->:tgt
+            ACCUM tgt.@i_filter  = true
+            ;
+
+Start2 = {customer_address.*};
+
+    attrV = SELECT tgt
+            FROM Start2:src-(ca_address_sk)->:tgt
+            WHERE src.ca_zip == "85669" OR src.ca_zip == "86197" OR src.ca_zip == "88274" OR
+                  src.ca_zip == "83405" OR src.ca_zip == "86475" OR src.ca_zip == "85392" OR
+                  src.ca_zip == "85460" OR src.ca_zip == "80348" OR src.ca_zip == "81792"
+            ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src- (c_current_addr_sk)->:tgt
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(c_customer_sk)->:tgt
+            ACCUM tgt.@ca_filter = true
+            ;
+   
+    tuple_cs = SELECT src
+               FROM tuple_cs:src-(ws_item_sk)->:tgt
+               ACCUM IF tgt.@i_filter == true THEN src.@i_filter = true END
+               ;
+
+//Collection
+
+    attrV = SELECT tgt
+            FROM tuple_cs:src-(ws_bill_customer_sk)->:tgt
+            WHERE tgt.@ca_filter OR src.@i_filter
+            ACCUM CASE WHEN src.ws_sales_price > -1000000.0 
+                       THEN tgt.@sum_sales_price += src.ws_sales_price
+                  END
+            ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src- (c_customer_sk)->:tgt
+             ACCUM tgt.@sum_sales_price = src.@sum_sales_price
+             POST-ACCUM src.@sum_sales_price = 0
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(c_current_addr_sk)->:tgt
+            ACCUM tgt.@sum_sales_price += src.@sum_sales_price
+            ;
+
+    tupleV  = SELECT tgt
+              FROM attrV:src-(ca_address_sk)->:tgt
+              ACCUM @@result += (caTuple(tgt.ca_zip,tgt.ca_city) -> src.@sum_sales_price)
+             ;
+
+}
+
+INSTALL QUERY q45

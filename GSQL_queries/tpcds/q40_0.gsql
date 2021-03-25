@@ -1,0 +1,78 @@
+USE GRAPH tpcds
+
+DROP QUERY q40_0
+
+CREATE QUERY q40_0() FOR GRAPH tpcds {
+GroupByAccum<string wstate, string item, SumAccum<double> sales_before, SumAccum<double> sales_after> @@result;
+SumAccum<double> @refund;
+SumAccum<string> @item, @wstate;
+OrAccum @before;
+SetAccum<int> @@imap;
+
+Start2 = {item.*};
+
+Start2 = SELECT src
+        FROM Start2:src
+        WHERE src.i_current_price >= 0.99 AND src.i_current_price <= 1.49
+        ACCUM @@imap +=  src.i_item_sk
+        ;
+
+Start = {attribute_date.*};
+
+tupleV (ANY) = SELECT tgt
+               FROM Start:src- (d_date)->:tgt
+               WHERE src.id >= to_datetime("2000-02-10") AND src.id <= to_datetime("2000-04-10")
+               ACCUM CASE WHEN src.id < to_datetime("2000-03-11")
+                          THEN tgt.@before = true END 
+               ;
+
+attrV (ANY) = SELECT tgt
+              FROM tupleV:src- (d_date_sk)->:tgt
+              ACCUM tgt.@before = src.@before
+              ;
+
+tupleV = SELECT tgt
+         FROM attrV:src - (cs_sold_date_sk)->:tgt
+         WHERE tgt.cs_sales_price > -1000000.0 AND @@imap.contains(tgt.cs_item_sk)
+         ACCUM tgt.@before = src.@before
+         ;
+
+//Collection 
+attrV = SELECT tgt
+        FROM tupleV:src -(cs_item_sk)->:tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src -(i_item_sk)->:tgt
+        ACCUM src.@item = tgt.i_item_id
+        ;
+
+tuple_cs = SELECT src
+         FROM tupleV:src -(cs_item_sk)->:tgt
+         ACCUM src.@item = tgt.@item
+         ;
+
+
+Start3 = {warehouse.*};
+
+attrV = SELECT tgt
+        FROM Start3:src -(w_warehouse_sk)->:tgt
+        ACCUM tgt.@wstate = src.w_state
+        ;
+
+tupleV = SELECT src
+         FROM tuple_cs:src -(cs_cr_order_item)->:tgt
+         WHERE tgt.cr_refunded_cash > -1000000.0
+         ACCUM src.@refund = tgt.cr_refunded_cash
+         ;
+
+tuple_cs = SELECT src
+         FROM tuple_cs:src -(cs_warehouse_sk)->:tgt
+         ACCUM CASE WHEN src.@before THEN @@result += (tgt.@wstate,src.@item -> (src.cs_sales_price-src.@refund), 0)
+                                     ELSE @@result += (tgt.@wstate,src.@item -> 0, (src.cs_sales_price-src.@refund))
+               END
+         ;
+
+}
+
+INSTALL QUERY q40_0

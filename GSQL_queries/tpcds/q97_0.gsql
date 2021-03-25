@@ -1,0 +1,47 @@
+USE GRAPH tpcds
+
+DROP QUERY q97_0
+
+CREATE QUERY q97_0() FOR GRAPH tpcds {
+typedef Tuple<int c,int i> resTuple;
+SetAccum<resTuple> @@seen, @@ss, @@store_and_catalog, @@cs;
+SetAccum<int> @@dmap;
+
+Start2 = {date_dim.*};
+
+Start2 = SELECT src
+        FROM Start2:src
+        WHERE src.d_month_seq >= 1200 AND src.d_month_seq <= 1211
+        ACCUM @@dmap += src.d_date_sk
+        ;
+
+Start = {catalog_sales.*};
+
+attr = SELECT src
+       FROM Start:src
+       WHERE src.cs_bill_customer_sk != -1 AND src.cs_item_sk != -1 AND @@dmap.contains(src.cs_sold_date_sk)
+       POST-ACCUM @@cs += resTuple(src.cs_bill_customer_sk, src.cs_item_sk)
+       ;
+
+Start3 = {store_sales.*};
+
+attr = SELECT src
+       FROM Start3:src
+       WHERE src.ss_customer_sk != -1 AND src.ss_item_sk != -1 AND @@dmap.contains(src.ss_sold_date_sk)
+       ACCUM CASE WHEN @@cs.contains(resTuple(src.ss_customer_sk, src.ss_item_sk)) 
+                  THEN @@store_and_catalog += resTuple(src.ss_customer_sk, src.ss_item_sk),  @@seen += resTuple(src.ss_customer_sk, src.ss_item_sk)
+                  ELSE @@ss += resTuple(src.ss_customer_sk, src.ss_item_sk) 
+            END
+       ;
+
+
+FOREACH s IN @@seen DO
+ @@cs.remove(resTuple(s.c,s.i));
+END;
+
+//print @@cs.size(), @@store_and_catalog.size(), @@ss.size();
+
+
+}
+
+INSTALL QUERY q97_0

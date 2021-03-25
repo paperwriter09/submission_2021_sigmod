@@ -1,0 +1,59 @@
+USE GRAPH tpcds
+
+DROP QUERY q78
+
+CREATE QUERY q78() FOR GRAPH tpcds {
+
+GroupByAccum<int item, int cust, SumAccum<int> qty, SumAccum<double> wc, SumAccum<double> sp> @@ss, @@cs, @@ws;
+GroupByAccum<int item, int cust, SumAccum<int> ratio, SumAccum<int> qty, SumAccum<double> ss_wc, SumAccum<double> ss_sp, SumAccum<int> other_qty, SumAccum<double> other_wc, SumAccum<double> other_sp> @@result;
+SumAccum<int> @@year;
+
+@@year = 2000;
+Start = {date_dim.*};
+
+attrd = SELECT tgt
+        FROM Start:src- (d_date_sk)->:tgt
+        WHERE src.d_year == 2000
+        ;
+
+
+tuple_ss = SELECT src
+           FROM attrd:src- (ss_sold_date_sk)->:tgt
+           WHERE tgt.outdegree("ss_item_sk") > 0 AND tgt.outdegree("ss_customer_sk") > 0 AND tgt.outdegree("ss_sr_ticket_item") == 0
+           ACCUM @@ss += (tgt.ss_item_sk, tgt.ss_customer_sk -> 0,0,0),
+                 CASE WHEN tgt.ss_quantity != -1 THEN @@ss += (tgt.ss_item_sk, tgt.ss_customer_sk -> tgt.ss_quantity,0,0) END,
+                 CASE WHEN tgt.ss_wholesale_cost > -1000000.0 THEN @@ss += (tgt.ss_item_sk, tgt.ss_customer_sk -> 0,tgt.ss_wholesale_cost,0) END,
+                 CASE WHEN tgt.ss_sales_price > -1000000.0 THEN @@ss += (tgt.ss_item_sk, tgt.ss_customer_sk -> 0,0,tgt.ss_sales_price) END
+           ;
+
+
+tuple_cs = SELECT src
+           FROM attrd:src- (cs_sold_date_sk)->:tgt
+           WHERE tgt.outdegree("cs_item_sk") > 0 AND tgt.outdegree("cs_bill_customer_sk") > 0 AND tgt.outdegree("cs_cr_order_item") == 0
+           ACCUM @@cs += (tgt.cs_item_sk, tgt.cs_bill_customer_sk -> 0,0,0),
+                 CASE WHEN tgt.cs_quantity != -1 THEN @@cs += (tgt.cs_item_sk, tgt.cs_bill_customer_sk -> tgt.cs_quantity,0,0) END,
+                 CASE WHEN tgt.cs_wholesale_cost > -1000000.0 THEN @@cs += (tgt.cs_item_sk, tgt.cs_bill_customer_sk -> 0,tgt.cs_wholesale_cost,0) END,
+                 CASE WHEN tgt.cs_sales_price > -1000000.0 THEN @@cs += (tgt.cs_item_sk, tgt.cs_bill_customer_sk -> 0,0,tgt.cs_sales_price) END
+           ;
+
+
+tuple_ws = SELECT src
+           FROM attrd:src- (ws_sold_date_sk)->:tgt
+           WHERE tgt.outdegree("ws_item_sk") > 0 AND tgt.outdegree("ws_bill_customer_sk") > 0 AND tgt.outdegree("ws_wr_order_item") == 0
+           ACCUM @@ws += (tgt.ws_item_sk, tgt.ws_bill_customer_sk -> 0,0,0),
+                 CASE WHEN tgt.ws_quantity != -1 THEN @@ws += (tgt.ws_item_sk, tgt.ws_bill_customer_sk -> tgt.ws_quantity,0,0) END,
+                 CASE WHEN tgt.ws_wholesale_cost > -1000000.0 THEN @@ws += (tgt.ws_item_sk, tgt.ws_bill_customer_sk -> 0,tgt.ws_wholesale_cost,0) END,
+                 CASE WHEN tgt.ws_sales_price > -1000000.0 THEN @@ws += (tgt.ws_item_sk, tgt.ws_bill_customer_sk -> 0,0,tgt.ws_sales_price) END
+           ;
+
+
+FOREACH (k1,k2,v1,v2,v3) IN @@ss DO
+ CASE WHEN @@cs.get(k1,k2).qty > 0 OR @@ws.get(k1,k2).qty > 0 THEN
+   @@result += (k1,k2 -> v1/(@@cs.get(k1,k2).qty+@@ws.get(k1,k2).qty),v1,v2,v3,@@cs.get(k1,k2).qty+@@ws.get(k1,k2).qty,@@cs.get(k1,k2).wc+@@ws.get(k1,k2).wc,@@cs.get(k1,k2).sp+@@ws.get(k1,k2).sp);
+ END;
+END;
+
+
+}
+
+INSTALL QUERY q78

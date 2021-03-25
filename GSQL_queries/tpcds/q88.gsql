@@ -1,0 +1,129 @@
+USE GRAPH tpcds
+
+DROP QUERY q88
+
+CREATE QUERY q88() FOR GRAPH tpcds {
+SumAccum<int> @@h8_30_to_9, @@h9_to_9_30, @@h9_30_to_10, @@h10_to_10_30, @@h10_30_to_11, @@h11_to_11_30, @@h11_30_to_12, @@h12_to_12_30;
+OrAccum @h_830, @h_9, @h_930, @h_10, @h_1030, @h_11, @h_1130, @h_12, @hd_filter;
+
+Start3 = {sstore.*};
+
+attrV (ANY) = SELECT tgt
+              FROM Start3:src - (s_store_sk)->:tgt
+              WHERE src.s_store_name == "ese"
+              ;
+
+tuple_ss = SELECT tgt
+           FROM attrV:src -(ss_store_sk)->:tgt
+           ;
+
+Start = {household_demographics.*};
+
+attrV = SELECT tgt
+        FROM Start:src - (hd_demo_sk)->:tgt
+        WHERE (src.hd_dep_count == 0 AND src.hd_vehicle_count <= 2) OR
+              (src.hd_dep_count == 2 AND src.hd_vehicle_count <= 4) OR
+              (src.hd_dep_count == 4 AND src.hd_vehicle_count <= 6)
+        ACCUM tgt.@hd_filter = true
+        ;
+
+tuple_ss = SELECT src
+           FROM tuple_ss:src -(ss_hdemo_sk)->:tgt
+           WHERE tgt.@hd_filter
+         ;
+
+Start2 = {time_dim.*};
+
+attrV = SELECT tgt
+        FROM Start2:src - (t_time_sk)->:tgt
+        WHERE (src.t_hour == 8 AND src.t_minute >= 30) OR
+              (src.t_hour == 9 AND src.t_minute < 30) OR
+              (src.t_hour == 9 AND src.t_minute >= 30) OR
+              (src.t_hour == 10 AND src.t_minute < 30) OR
+              (src.t_hour == 10 AND src.t_minute >= 30) OR
+              (src.t_hour == 11 AND src.t_minute < 30) OR
+              (src.t_hour == 11 AND src.t_minute >= 30) OR
+              (src.t_hour == 12 AND src.t_minute < 30) 
+        ACCUM CASE WHEN src.t_hour == 8 AND src.t_minute >= 30 THEN tgt.@h_830 = true
+                   WHEN src.t_hour == 9 AND src.t_minute < 30 THEN tgt.@h_9 = true
+                   WHEN src.t_hour == 9 AND src.t_minute >= 30 THEN tgt.@h_930 = true
+                   WHEN src.t_hour == 10 AND src.t_minute < 30 THEN tgt.@h_10 = true
+                   WHEN src.t_hour == 10 AND src.t_minute >= 30 THEN tgt.@h_1030 = true
+                   WHEN src.t_hour == 11 AND src.t_minute < 30 THEN tgt.@h_11 = true
+                   WHEN src.t_hour == 11 AND src.t_minute >= 30 THEN tgt.@h_1130 = true
+                   ELSE tgt.@h_12 = true
+               END
+        ;
+
+tuple_ss = SELECT src
+           FROM tuple_ss:src - (ss_sold_time_sk)->:tgt
+           WHERE tgt.@h_830 OR tgt.@h_9 OR tgt.@h_930 OR tgt.@h_10 OR tgt.@h_1030 OR tgt.@h_11 OR tgt.@h_1130 OR tgt.@h_12
+           ;
+
+tupleV = SELECT src
+         FROM tuple_ss:src - (ss_sold_time_sk)->:tgt
+         WHERE tgt.@h_830
+         ;
+
+@@h8_30_to_9 = tupleV.size();
+
+
+tupleV = SELECT src
+         FROM tuple_ss:src - (ss_sold_time_sk)->:tgt
+         WHERE tgt.@h_9
+         ;
+
+@@h9_to_9_30 = tupleV.size();
+
+
+tupleV = SELECT src
+         FROM tuple_ss:src - (ss_sold_time_sk)->:tgt
+         WHERE tgt.@h_930
+         ;
+
+@@h9_30_to_10 = tupleV.size();
+
+
+tupleV = SELECT src
+         FROM tuple_ss:src - (ss_sold_time_sk)->:tgt
+         WHERE tgt.@h_10
+         ;
+
+@@h10_to_10_30 = tupleV.size();
+
+
+tupleV = SELECT src
+         FROM tuple_ss:src - (ss_sold_time_sk)->:tgt
+         WHERE tgt.@h_1030
+         ;
+
+@@h10_30_to_11 = tupleV.size();
+
+
+tupleV = SELECT src
+         FROM tuple_ss:src - (ss_sold_time_sk)->:tgt
+         WHERE tgt.@h_11
+         ;
+
+@@h11_to_11_30 = tupleV.size();
+
+
+tupleV = SELECT src
+         FROM tuple_ss:src - (ss_sold_time_sk)->:tgt
+         WHERE tgt.@h_1130
+         ;
+
+@@h11_30_to_12 = tupleV.size();
+
+
+tupleV = SELECT src
+         FROM tuple_ss:src - (ss_sold_time_sk)->:tgt
+         WHERE tgt.@h_12
+         ;
+
+@@h12_to_12_30 = tupleV.size();
+
+
+}
+
+INSTALL QUERY q88

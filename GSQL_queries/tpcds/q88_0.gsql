@@ -1,0 +1,66 @@
+USE GRAPH tpcds
+
+DROP QUERY q88_0
+
+CREATE QUERY q88_0() FOR GRAPH tpcds {
+SumAccum<int> @@h8_30_to_9, @@h9_to_9_30, @@h9_30_to_10, @@h10_to_10_30, @@h10_30_to_11, @@h11_to_11_30, @@h11_30_to_12, @@h12_to_12_30;
+SetAccum<int> @@hdmap, @@tmap, @@h_830, @@h_9, @@h_930, @@h_10, @@h_1030, @@h_11, @@h_1130, @@h_12;
+
+Start = {household_demographics.*};
+
+Start = SELECT src
+        FROM Start:src
+        WHERE (src.hd_dep_count == 0 AND src.hd_vehicle_count <= 2) OR
+              (src.hd_dep_count == 2 AND src.hd_vehicle_count <= 4) OR
+              (src.hd_dep_count == 4 AND src.hd_vehicle_count <= 6)
+        ACCUM @@hdmap += src.hd_demo_sk
+        ;
+
+Start2 = {time_dim.*};
+
+Start2 = SELECT src
+         FROM Start2:src
+         WHERE (src.t_hour == 8 AND src.t_minute >= 30) OR
+              (src.t_hour == 9 AND src.t_minute < 30) OR
+              (src.t_hour == 9 AND src.t_minute >= 30) OR
+              (src.t_hour == 10 AND src.t_minute < 30) OR
+              (src.t_hour == 10 AND src.t_minute >= 30) OR
+              (src.t_hour == 11 AND src.t_minute < 30) OR
+              (src.t_hour == 11 AND src.t_minute >= 30) OR
+              (src.t_hour == 12 AND src.t_minute < 30)
+        ACCUM CASE WHEN src.t_hour == 8 AND src.t_minute >= 30 THEN @@h_830 += src.t_time_sk
+                   WHEN src.t_hour == 9 AND src.t_minute < 30 THEN @@h_9 += src.t_time_sk
+                   WHEN src.t_hour == 9 AND src.t_minute >= 30 THEN @@h_930 += src.t_time_sk
+                   WHEN src.t_hour == 10 AND src.t_minute < 30 THEN @@h_10 += src.t_time_sk
+                   WHEN src.t_hour == 10 AND src.t_minute >= 30 THEN @@h_1030 += src.t_time_sk
+                   WHEN src.t_hour == 11 AND src.t_minute < 30 THEN @@h_11 += src.t_time_sk
+                   WHEN src.t_hour == 11 AND src.t_minute >= 30 THEN @@h_1130 += src.t_time_sk
+                   ELSE @@h_12 += src.t_time_sk
+               END
+              , @@tmap += src.t_time_sk
+        ;
+
+Start3 = {sstore.*};
+
+attrV (ANY) = SELECT tgt
+              FROM Start3:src - (s_store_sk)->:tgt
+              WHERE src.s_store_name == "ese"
+              ;
+
+tuple_ss = SELECT tgt
+           FROM attrV:src -(ss_store_sk)->:tgt
+           WHERE @@hdmap.contains(tgt.ss_hdemo_sk) AND @@tmap.contains(tgt.ss_sold_time_sk)
+           POST-ACCUM CASE WHEN @@h_830.contains(tgt.ss_sold_time_sk) THEN @@h8_30_to_9 += 1
+                           WHEN @@h_9.contains(tgt.ss_sold_time_sk) THEN @@h9_to_9_30 += 1
+                           WHEN @@h_930.contains(tgt.ss_sold_time_sk) THEN @@h9_30_to_10 += 1
+                           WHEN @@h_10.contains(tgt.ss_sold_time_sk) THEN @@h10_to_10_30 += 1
+                           WHEN @@h_1030.contains(tgt.ss_sold_time_sk) THEN @@h10_30_to_11 += 1
+                           WHEN @@h_11.contains(tgt.ss_sold_time_sk) THEN @@h11_to_11_30 += 1
+                           WHEN @@h_1130.contains(tgt.ss_sold_time_sk) THEN @@h11_30_to_12 += 1
+                           WHEN @@h_12.contains(tgt.ss_sold_time_sk) THEN @@h12_to_12_30 += 1
+                END
+              ;
+
+}
+
+INSTALL QUERY q88_0

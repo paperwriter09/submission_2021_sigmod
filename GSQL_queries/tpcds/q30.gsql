@@ -1,0 +1,70 @@
+USE GRAPH tpcds
+
+DROP QUERY q30
+
+CREATE QUERY q30() FOR GRAPH tpcds {
+typedef Tuple<string cid, string salut, string fname, string lname, string cflag, int bday, int bmonth, int byear, string bcountry, string clogin, string cemail, string lastrev, double creturn> resTuple;
+typedef Tuple<customer int, state string> srTuple;
+MapAccum<srTuple, SumAccum<double>> @@ctr;
+MapAccum<string, AvgAccum> @@avg_ctr;
+SumAccum<string> @state;
+ListAccum<resTuple> @result;
+SetAccum<string> @cnt_state;
+OrAccum @c_filter;
+
+//Reduction
+
+Start = {date_dim.*};
+
+    attrV (ANY) = SELECT tgt
+                  FROM Start:src - (d_date_sk)->:tgt
+                  WHERE src.d_year == 2002
+                  ;
+
+    tupleV (ANY) = SELECT tgt
+                   FROM attrV:src - (wr_returned_date_sk)->:tgt
+                   ;
+
+Start2 = {customer_address.*};
+
+attrV = SELECT tgt
+        FROM Start2:src - (ca_address_sk)->:tgt
+        WHERE src.ca_state != "NULL"
+        ACCUM tgt.@state = src.ca_state, CASE WHEN src.ca_state == "GA" THEN tgt.@c_filter = true END
+        ;
+
+   tupleV = SELECT src
+            FROM tupleV:src - (wr_returning_addr_sk)->:tgt
+            WHERE tgt.@state != ""
+            ACCUM CASE WHEN src.wr_return_amt > -1000000.0 THEN @@ctr += (srTuple(src.wr_returning_customer_sk,tgt.@state) -> src.wr_return_amt) END
+                  , src.@state = tgt.@state
+            ;
+ 
+   FOREACH (k,v) in @@ctr DO
+       @@avg_ctr += (k.state -> v);
+   END;
+
+//Colection
+
+   attrV = SELECT tgt
+           FROM tupleV:src-(wr_returning_customer_sk)->:tgt
+           WHERE @@ctr.get(srTuple(src.wr_returning_customer_sk,src.@state)) > 1.2*@@avg_ctr.get(src.@state)
+           ACCUM tgt.@cnt_state += src.@state;
+
+    tupleV  = SELECT tgt
+              FROM attrV:src-(c_customer_sk)->:tgt
+              ACCUM tgt.@cnt_state = src.@cnt_state
+              ;
+
+    tupleV = SELECT src
+            FROM tupleV:src-(c_current_addr_sk)->:tgt
+            WHERE tgt.@c_filter
+            ACCUM FOREACH s IN src.@cnt_state DO
+                      src.@result += resTuple(src.c_customer_id, src.c_salutation, src.c_first_name, src.c_last_name, src.c_preferred_cust_flag,src.c_birth_day,src.c_birth_month,src.c_birth_year,src.c_birth_country,src.c_login,src.c_email_address,src.c_last_review_date, @@ctr.get(srTuple(src.c_customer_sk,s)))
+                  END
+            ;
+
+
+}
+
+INSTALL QUERY q30

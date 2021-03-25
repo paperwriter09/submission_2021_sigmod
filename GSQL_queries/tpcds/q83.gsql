@@ -1,0 +1,137 @@
+USE GRAPH tpcds
+
+DROP QUERY q83
+
+CREATE QUERY q83() FOR GRAPH tpcds {
+SumAccum<int> @sr_item_qty, @cr_item_qty, @wr_item_qty;
+SumAccum<double> @sr_dev, @cr_dev, @wr_dev, @avg_all;
+OrAccum @d_filter;
+
+//Reduction
+Start = {date_dim.*};
+
+    attrV (ANY) = SELECT tgt
+                  FROM Start:src- (d_week_seq)->:tgt
+                  WHERE src.d_date == to_datetime("2000-06-30") OR src.d_date == to_datetime("2000-09-27") OR src.d_date == to_datetime("2000-11-17")
+                  ;
+
+   tupleV (ANY) = SELECT tgt
+                  FROM attrV:src- (d_week_seq)->:tgt
+                  ;
+
+
+   attrd = SELECT tgt
+           FROM tupleV:src- (d_date_sk)->:tgt
+           ;
+
+   tupless = SELECT tgt
+             FROM attrd:src - (sr_returned_date_sk)->:tgt
+             ACCUM tgt.@d_filter = true
+              ;
+   
+   attrV = SELECT tgt
+           FROM tupless:src - (sr_item_sk) -> :tgt
+           ;
+
+tupleV = SELECT tgt
+         FROM attrV:src - (i_item_sk) -> :tgt
+         ;
+
+
+attrss = SELECT tgt
+         FROM tupleV:src - (i_item_id) -> :tgt
+         ;
+
+
+   tuplecs = SELECT tgt
+            FROM attrd:src - (cr_returned_date_sk)->:tgt
+            ACCUM tgt.@d_filter = true
+            ;
+
+attrV = SELECT tgt
+           FROM tuplecs:src - (cr_item_sk) -> :tgt
+           ;
+
+tupleV = SELECT tgt
+         FROM attrV:src - (i_item_sk) -> :tgt
+         ;
+
+
+attrcs = SELECT tgt
+         FROM tupleV:src - (i_item_id) -> :tgt
+         ;
+
+
+   tuplews = SELECT tgt
+            FROM attrd:src - (wr_returned_date_sk)->:tgt
+            ACCUM tgt.@d_filter = true
+             ;
+
+attrV = SELECT tgt
+           FROM tuplews:src - (wr_item_sk) -> :tgt
+           ;
+
+tupleV = SELECT tgt
+         FROM attrV:src - (i_item_sk) -> :tgt
+         ;
+
+
+attrws = SELECT tgt
+         FROM tupleV:src - (i_item_id) -> :tgt
+         ;
+
+
+attrV = attrss INTERSECT attrcs INTERSECT attrws;
+
+//Collection
+
+tupleV = SELECT tgt
+         FROM attrV:src - (i_item_id) -> :tgt
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src - (i_item_sk) -> :tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src - ((sr_item_sk|cr_item_sk|wr_item_sk):e) -> :tgt
+        ACCUM CASE e.type
+           WHEN "sr_item_sk" THEN
+              CASE WHEN tgt.sr_return_quantity != -1
+                   THEN src.@sr_item_qty += tgt.sr_return_quantity
+              END
+           WHEN "cr_item_sk" THEN
+              CASE WHEN tgt.cr_return_quantity != -1
+                   THEN src.@cr_item_qty += tgt.cr_return_quantity
+              END
+           WHEN "wr_item_sk" THEN   
+              CASE WHEN tgt.wr_return_quantity != -1
+                   THEN src.@wr_item_qty += tgt.wr_return_quantity
+              END
+        END
+        ;
+
+tupleV = SELECT tgt
+         FROM attrV:src - (i_item_sk) -> :tgt
+         ACCUM tgt.@sr_item_qty = src.@sr_item_qty,
+               tgt.@cr_item_qty = src.@cr_item_qty,
+               tgt.@wr_item_qty = src.@wr_item_qty
+         ;
+
+
+attrV = SELECT tgt
+         FROM tupleV:src - (i_item_id) -> :tgt
+         ACCUM tgt.@sr_item_qty += src.@sr_item_qty,
+               tgt.@cr_item_qty += src.@cr_item_qty,
+               tgt.@wr_item_qty += src.@wr_item_qty
+         POST-ACCUM CASE WHEN tgt.@sr_item_qty != 0 AND tgt.@cr_item_qty != 0 AND tgt.@wr_item_qty != 0 THEN
+              tgt.@sr_dev = tgt.@sr_item_qty/(tgt.@sr_item_qty+tgt.@cr_item_qty+tgt.@wr_item_qty)/3 * 100,
+              tgt.@cr_dev = tgt.@cr_item_qty/(tgt.@sr_item_qty+tgt.@cr_item_qty+tgt.@wr_item_qty)/3 * 100,
+              tgt.@wr_dev = tgt.@wr_item_qty/(tgt.@sr_item_qty+tgt.@cr_item_qty+tgt.@wr_item_qty)/3 * 100,
+              tgt.@avg_all = (tgt.@sr_item_qty+tgt.@cr_item_qty+tgt.@wr_item_qty)/3
+              END
+          ;
+
+}
+
+INSTALL QUERY q83

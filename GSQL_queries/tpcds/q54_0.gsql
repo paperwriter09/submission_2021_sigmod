@@ -1,0 +1,112 @@
+USE GRAPH tpcds
+
+DROP QUERY q54_0
+
+CREATE QUERY q54_0() FOR GRAPH tpcds {
+SetAccum<int> @@dmap, @@ssmap;
+SumAccum<int> @@month, @cnt;
+ListAccum<int> @@seq;
+ListAccum<string> @states;
+SumAccum<double> @revenue;
+MapAccum<int, SumAccum<int>> @@result;
+
+//Reduction
+Start3 = {sstore.*};
+
+Start3 = SELECT src
+        FROM Start3:src-(s_state)->:tgt
+        WHERE tgt.outdegree("ca_state") > 0
+        ACCUM src.@states = src.s_state
+        ;
+
+attrV = SELECT tgt
+        FROM Start3:src-(s_county)->:tgt
+        WHERE tgt.outdegree("ca_county") > 0
+        ACCUM tgt.@states += src.@states
+        ;
+
+tupleV = SELECT tgt
+         FROM attrV:src-(ca_county)->:tgt
+         WHERE src.@states.contains(tgt.ca_state)
+         ACCUM tgt.@cnt += src.@states.size()
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src-(ca_address_sk)->:tgt
+        ACCUM tgt.@cnt = src.@cnt
+        ;
+
+tupleV = SELECT tgt
+         FROM attrV:src-(c_current_addr_sk)->:tgt
+         ACCUM tgt.@cnt += src.@cnt 
+         ;
+
+//----my customers---
+
+Start2 = {date_dim.*};
+
+attrV = SELECT src
+        FROM Start2:src
+        WHERE src.d_year == 1998 AND src.d_moy == 12
+        ACCUM @@dmap += src.d_date_sk, @@seq += src.d_month_seq
+        ;
+
+FOREACH s IN @@seq DO
+  @@month = s;
+END;
+
+attrV = SELECT src
+        FROM Start2:src
+        WHERE src.d_month_seq >= @@month+1 AND src.d_month_seq <= @@month+3
+        ACCUM @@ssmap += src.d_date_sk
+        ;
+
+Start = {item.*};
+
+attrV = SELECT tgt
+        FROM Start:src- (i_item_sk)->:tgt
+        WHERE src.i_category == "Women" AND src.i_class == "maternity"
+        ;
+
+tuple_cs = SELECT tgt
+           FROM attrV:src- (cs_item_sk)->:tgt
+           WHERE @@dmap.contains(tgt.cs_sold_date_sk)
+           ;
+
+attr_cs = SELECT tgt
+          FROM tuple_cs:src- (cs_bill_customer_sk)->:tgt
+          ;
+
+tuple_ws = SELECT tgt
+           FROM attrV:src- (ws_item_sk)->:tgt
+           WHERE @@dmap.contains(tgt.ws_sold_date_sk)
+           ;
+
+attr_ws = SELECT tgt
+          FROM tuple_ws:src- (ws_bill_customer_sk)->:tgt
+          ;
+
+attr_c = attr_cs UNION attr_ws;
+
+
+//-----my revenue-----
+attr_c = SELECT src
+         FROM attr_c:src- (c_customer_sk)->:tgt
+         WHERE tgt.@cnt != 0
+         ACCUM src.@cnt = tgt.@cnt
+        ;
+
+//Collection
+
+attr_c = SELECT src
+         FROM attr_c:src- (ss_customer_sk)->:tgt
+         WHERE @@ssmap.contains(tgt.ss_sold_date_sk)
+         ACCUM CASE WHEN tgt.ss_ext_sales_price != -1000000.0
+                    THEN src.@revenue += tgt.ss_ext_sales_price
+                    END
+         POST-ACCUM @@result += (src.@cnt*src.@revenue/50 -> 1)
+         ;
+
+}
+
+INSTALL QUERY q54_0

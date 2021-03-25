@@ -1,0 +1,174 @@
+USE GRAPH tpcds
+
+DROP QUERY q5
+
+
+CREATE QUERY q5() FOR GRAPH tpcds {
+typedef Tuple<string channel,string iid, double sales, double returnss, double profit> resTuple;
+ListAccum<resTuple> @@result;
+SumAccum<double> @s_sales, @s_profit, @s_returns, @c_sales, @c_profit, @c_returns, @w_sales, @w_profit, @w_returns;
+SumAccum<double> @@store_sales, @@store_profit, @@store_returns, @@catalog_sales, @@catalog_profit, @@catalog_returns, @@web_sales, @@web_profit, @@web_returns, @@total_sales, @@total_profit, @@total_returns;
+
+
+Start = {attribute_date.*};
+
+tupleV = SELECT tgt
+         FROM Start:src - (d_date)->:tgt
+         WHERE src.id >= to_datetime("2000-08-23") AND src.id <= to_datetime("2000-09-06 00:00:00.000")
+         ;
+
+
+attrV = SELECT tgt
+        FROM tupleV:src - (d_date_sk)->:tgt
+        ;
+
+//store sales
+tuple_ss (ANY) = SELECT tgt
+                 FROM attrV:src -(sr_returned_date_sk)->:tgt
+                 ;
+
+attr_sr = SELECT tgt
+          FROM tuple_ss:src -(sr_store_sk)->:tgt
+          ACCUM CASE WHEN src.sr_return_amt > -1000000.0
+                          THEN tgt.@s_returns += src.sr_return_amt END,
+                CASE WHEN src.sr_net_loss > -1000000.0
+                          THEN tgt.@s_profit += -1*src.sr_net_loss END
+         ;
+
+tuple_ss = SELECT tgt
+           FROM attrV:src -(ss_sold_date_sk)->:tgt
+           ;
+
+tuple_ss = SELECT tgt
+           FROM tuple_ss:src -(ss_store_sk)->:tgt
+           ACCUM CASE WHEN src.ss_ext_sales_price > -1000000.0
+                      THEN tgt.@s_sales += src.ss_ext_sales_price END,
+                 CASE WHEN src.ss_net_profit > -1000000.0
+                      THEN tgt.@s_profit += src.ss_net_profit END
+           ;
+
+tuple_ss = tuple_ss UNION attr_sr;
+
+tuple_ss = SELECT tgt
+           FROM tuple_ss:src -(s_store_sk)->:tgt
+           ACCUM tgt.@s_sales = src.@s_sales, tgt.@s_returns = src.@s_returns, tgt.@s_profit = src.@s_profit
+           ;
+
+
+attr_s = SELECT tgt
+         FROM tuple_ss:src -(s_store_id)->:tgt
+         ACCUM tgt.@s_sales += src.@s_sales, tgt.@s_returns += src.@s_returns, tgt.@s_profit += src.@s_profit
+         ;
+
+//catalog sales
+tuple_cs (ANY) = SELECT tgt
+                 FROM attrV:src -(cr_returned_date_sk)->:tgt
+                 ;
+
+
+attr_cr = SELECT tgt
+          FROM tuple_cs:src -(cr_catalog_page_sk)->:tgt
+          ACCUM CASE WHEN src.cr_return_amount > -1000000.0
+                          THEN tgt.@c_returns += src.cr_return_amount END,
+                CASE WHEN src.cr_net_loss > -1000000.0
+                          THEN tgt.@c_profit += -1*src.cr_net_loss END
+         ;
+
+tuple_cs = SELECT tgt
+           FROM attrV:src -(cs_sold_date_sk)->:tgt
+           ;
+
+tuple_cs = SELECT tgt
+           FROM tuple_cs:src -(cs_catalog_page_sk)->:tgt
+           ACCUM CASE WHEN src.cs_ext_sales_price > -1000000.0
+                      THEN tgt.@c_sales += src.cs_ext_sales_price END,
+                 CASE WHEN src.cs_net_profit > -1000000.0
+                      THEN tgt.@c_profit += src.cs_net_profit END
+           ;
+
+tuple_cs =tuple_cs UNION attr_cr;
+
+tuple_cs = SELECT tgt
+           FROM tuple_cs:src -(cp_catalog_page_sk)->:tgt
+           ACCUM tgt.@c_sales = src.@c_sales, tgt.@c_returns = src.@c_returns, tgt.@c_profit = src.@c_profit
+           ;
+
+//web sales
+tuple_ws (ANY) = SELECT tgt
+                 FROM attrV:src -(wr_returned_date_sk)->:tgt
+                 ;
+
+attr_wr (ANY) = SELECT tgt
+                FROM tuple_ws:src -(ws_wr_order_item)->:tgt
+                ACCUM CASE WHEN src.wr_return_amt > -1000000.0
+                          THEN tgt.@w_returns += src.wr_return_amt END,
+                      CASE WHEN src.wr_net_loss > -1000000.0
+                          THEN tgt.@w_profit += -1*src.wr_net_loss END
+         ;
+
+attr_wr = SELECT tgt
+          FROM attr_wr:src -(ws_web_site_sk)->:tgt
+          ACCUM tgt.@w_returns += src.@w_returns, tgt.@w_profit += src.@w_profit
+          ;
+
+tuple_ws = SELECT tgt
+           FROM attrV:src -(ws_sold_date_sk)->:tgt
+           ;
+
+tuple_ws = SELECT tgt
+           FROM tuple_ws:src -(ws_web_site_sk)->:tgt
+           ACCUM CASE WHEN src.ws_ext_sales_price > -1000000.0
+                      THEN tgt.@w_sales += src.ws_ext_sales_price END,
+                 CASE WHEN src.ws_net_profit > -1000000.0
+                      THEN tgt.@w_profit += src.ws_net_profit END
+           ;
+
+tuple_ws =tuple_ws UNION attr_wr;
+
+tuple_ws = SELECT tgt
+           FROM tuple_ws:src -(web_site_sk)->:tgt
+           ACCUM tgt.@w_sales = src.@w_sales, tgt.@w_returns = src.@w_returns, tgt.@w_profit = src.@w_profit
+           ;
+
+attr_w = SELECT tgt
+         FROM tuple_ws:src -(web_site_id)->:tgt
+         ACCUM tgt.@w_sales += src.@w_sales, tgt.@w_returns += src.@w_returns, tgt.@w_profit += src.@w_profit
+         ;
+
+//Construct final output tuples
+
+tuple_cs = SELECT src
+         FROM tuple_cs:src
+         ACCUM @@catalog_sales += src.@c_sales, @@catalog_returns += src.@c_returns, @@catalog_profit += src.@c_profit
+              ,@@result += resTuple("catalog channel", "catalog_page"+src.cp_catalog_page_id, src.@c_sales, src.@c_returns, src.@c_profit)
+         ;
+
+@@result += resTuple("catalog channel", "NULL", @@catalog_sales, @@catalog_returns, @@catalog_profit);
+
+
+attr_s = SELECT src
+         FROM attr_s:src
+         ACCUM @@store_sales += src.@s_sales, @@store_returns += src.@s_returns, @@store_profit += src.@s_profit
+               ,@@result += resTuple("store channel", "store"+src.id, src.@s_sales, src.@s_returns, src.@s_profit)
+         ;
+
+
+@@result += resTuple("store channel" , "NULL", @@store_sales, @@store_returns, @@store_profit);
+
+attr_w = SELECT src
+         FROM attr_w:src
+         ACCUM @@web_sales += src.@w_sales, @@web_returns += src.@w_returns, @@web_profit += src.@w_profit
+               ,@@result += resTuple("web channel", "web_site"+src.id, src.@w_sales, src.@w_returns, src.@w_profit)
+         ;
+
+@@result += resTuple("web channel", "NULL", @@web_sales, @@web_returns, @@web_profit);
+
+@@total_sales = @@catalog_sales + @@store_sales + @@web_sales;
+@@total_returns = @@catalog_returns + @@store_returns + @@web_returns;
+@@total_profit = @@catalog_profit + @@store_profit + @@web_profit;
+
+@@result += resTuple("NULL", "NULL", @@total_sales, @@total_returns, @@total_profit);
+
+}
+
+INSTALL QUERY q5

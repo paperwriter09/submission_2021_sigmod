@@ -1,0 +1,47 @@
+USE GRAPH tpcds
+
+DROP QUERY q82
+
+CREATE QUERY q82() FOR GRAPH tpcds {
+OrAccum @d_filter;
+
+Start = {attribute_date.*};
+
+    tupleV (ANY) = SELECT tgt
+                   FROM Start:src- (d_date)->:tgt
+                   WHERE src.id >= to_datetime("2000-05-25") AND src.id <= to_datetime("2000-07-24")
+                   ;
+
+    attrV (ANY) = SELECT tgt
+                  FROM tupleV:src- (d_date_sk)->:tgt
+                  ACCUM tgt.@d_filter = true
+                  ;
+
+Start2 = {item.*};
+
+    attrV  = SELECT tgt
+             FROM Start2:src-(i_item_sk)->:tgt
+             WHERE tgt.outdegree("ss_item_sk") > 0 AND src.i_current_price >= 62 AND src.i_current_price <= 92 AND (src.i_manufact_id == 129 OR src.i_manufact_id == 270 OR src.i_manufact_id == 821 OR src.i_manufact_id == 423) 
+             ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src- (inv_item_sk)->:tgt
+             WHERE tgt.inv_quantity_on_hand BETWEEN 100 AND 500
+            ;
+
+    tupleV = SELECT src
+             FROM tupleV:src- (inv_date_sk)->:tgt
+             WHERE tgt.@d_filter
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(inv_item_sk)->:tgt
+            ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src-(i_item_sk)->:tgt
+             ;
+
+}
+
+INSTALL QUERY q82

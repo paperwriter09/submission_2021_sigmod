@@ -1,0 +1,55 @@
+USE GRAPH tpcds
+
+DROP QUERY q1_0
+
+CREATE QUERY q1_0() FOR GRAPH tpcds {
+typedef Tuple<customer int, sstore int> srTuple;
+MapAccum<srTuple, SumAccum<double>> @@ctr;
+MapAccum<int, AvgAccum> @@avg_ctr;
+
+SetAccum<int> @cnt_store, @@smap;
+
+//Reduction
+Start = {sstore.*};
+
+    Start  = SELECT src
+             FROM Start:src
+             WHERE src.s_state == "TN"
+             ACCUM @@smap += src.s_store_sk
+             ;
+
+Start2 = {date_dim.*};
+
+    attrV (ANY) = SELECT tgt
+                  FROM Start2:src - (d_date_sk)->:tgt
+                  WHERE src.d_year == 2000
+                  ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src- (sr_returned_date_sk)->:tgt
+             WHERE @@smap.contains(tgt.sr_store_sk) AND tgt.sr_return_amt > -1000000.0
+             POST-ACCUM @@ctr += (srTuple(tgt.sr_customer_sk, tgt.sr_store_sk) -> tgt.sr_return_amt)
+             ;
+
+   FOREACH (k,v) in @@ctr DO
+       @@avg_ctr += (k.sstore -> v);
+   END;
+
+
+//Colection
+
+   attrV = SELECT tgt
+           FROM tupleV:src-(sr_customer_sk)->:tgt
+           WHERE @@ctr.get(srTuple(src.sr_customer_sk,src.sr_store_sk)) > 1.2*@@avg_ctr.get(src.sr_store_sk)
+           ACCUM tgt.@cnt_store += src.sr_store_sk
+           ;
+
+    tupleV  = SELECT tgt
+              FROM attrV:src-(c_customer_sk)->:tgt
+              ACCUM tgt.@cnt_store = src.@cnt_store
+              ;
+
+
+}
+
+INSTALL QUERY q1_0

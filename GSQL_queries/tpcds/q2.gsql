@@ -1,0 +1,119 @@
+USE GRAPH tpcds
+
+DROP QUERY q2
+
+CREATE QUERY q2() FOR GRAPH tpcds {
+typedef Tuple<int week, double sun_sales, double mon_sales, double tue_sales, double wed_sales, double thu_sales, double fri_sales, double sat_sales> resTuple;
+ListAccum<resTuple> @@result;
+SumAccum<int> @week;
+SumAccum<string> @day;
+MapAccum<int, SumAccum<int>> @@cnt1, @@cnt2;
+
+GroupByAccum<int week, SumAccum<double> sun_sales, SumAccum<double> mon_sales, SumAccum<double> tue_sales, SumAccum<double> wed_sales, SumAccum<double> thu_sales, SumAccum<double> fri_sales, SumAccum<double> sat_sales> @@week_seq1, @@week_seq2;
+
+
+Start = {date_dim.*};
+
+attrV =  SELECT tgt
+         FROM Start:src- (d_week_seq)->:tgt
+         WHERE src.d_year == 2001
+         ACCUM @@cnt1 += (src.d_week_seq -> 1)
+         ;
+
+tupleV = SELECT tgt
+         FROM attrV:src- (d_week_seq)->:tgt
+         ;
+
+attrd1 = SELECT tgt
+	       FROM tupleV:src- (d_date_sk)->:tgt
+	       ACCUM tgt.@day = src.d_day_name, tgt.@week = src.d_week_seq
+         ;
+
+attrV =  SELECT tgt
+         FROM Start:src- (d_week_seq)->:tgt
+         WHERE src.d_year == 2002
+         ACCUM @@cnt2 += (src.d_week_seq -> 1)
+         ;
+
+tupleV = SELECT tgt
+         FROM attrV:src- (d_week_seq)->:tgt
+         ;
+
+attrd2 = SELECT tgt
+        FROM tupleV:src- (d_date_sk)->:tgt
+        ACCUM tgt.@day = src.d_day_name, tgt.@week = src.d_week_seq
+         ;
+
+//web sales
+attr = SELECT src
+       FROM attrd1:src- (ws_sold_date_sk)->:tgt
+       WHERE tgt.ws_ext_sales_price > -1000000.0
+       ACCUM CASE WHEN src.@day == "Sunday" THEN @@week_seq1 += (src.@week -> tgt.ws_ext_sales_price,0,0,0,0,0,0)
+                  WHEN src.@day == "Monday" THEN @@week_seq1 += (src.@week -> 0,tgt.ws_ext_sales_price,0,0,0,0,0)
+                  WHEN src.@day == "Tuesday" THEN @@week_seq1 += (src.@week -> 0,0,tgt.ws_ext_sales_price,0,0,0,0)
+                  WHEN src.@day == "Wednesday" THEN @@week_seq1 += (src.@week -> 0,0,0,tgt.ws_ext_sales_price,0,0,0)
+                  WHEN src.@day == "Thursday" THEN @@week_seq1 += (src.@week -> 0,0,0,0,tgt.ws_ext_sales_price,0,0)
+                  WHEN src.@day == "Friday" THEN @@week_seq1 += (src.@week -> 0,0,0,0,0,tgt.ws_ext_sales_price,0)
+                  ELSE @@week_seq1 += (src.@week -> 0,0,0,0,0,0,tgt.ws_ext_sales_price)
+              END 
+       ;
+
+attr = SELECT src
+       FROM attrd2:src- (ws_sold_date_sk)->:tgt
+       WHERE tgt.ws_ext_sales_price > -1000000.0
+       ACCUM CASE WHEN src.@day == "Sunday" THEN @@week_seq2 += (src.@week -> tgt.ws_ext_sales_price,0,0,0,0,0,0)
+                  WHEN src.@day == "Monday" THEN @@week_seq2 += (src.@week -> 0,tgt.ws_ext_sales_price,0,0,0,0,0)
+                  WHEN src.@day == "Tuesday" THEN @@week_seq2 += (src.@week -> 0,0,tgt.ws_ext_sales_price,0,0,0,0)
+                  WHEN src.@day == "Wednesday" THEN @@week_seq2 += (src.@week -> 0,0,0,tgt.ws_ext_sales_price,0,0,0)
+                  WHEN src.@day == "Thursday" THEN @@week_seq2 += (src.@week -> 0,0,0,0,tgt.ws_ext_sales_price,0,0)
+                  WHEN src.@day == "Friday" THEN @@week_seq2 += (src.@week -> 0,0,0,0,0,tgt.ws_ext_sales_price,0)
+                  ELSE @@week_seq2 += (src.@week -> 0,0,0,0,0,0,tgt.ws_ext_sales_price)
+              END 
+         ;
+
+attr = SELECT src
+       FROM attrd1:src- (cs_sold_date_sk)->:tgt
+       WHERE tgt.cs_ext_sales_price > -1000000.0
+       ACCUM CASE WHEN src.@day == "Sunday" THEN @@week_seq1 += (src.@week -> tgt.cs_ext_sales_price,0,0,0,0,0,0)
+                  WHEN src.@day == "Monday" THEN @@week_seq1 += (src.@week -> 0,tgt.cs_ext_sales_price,0,0,0,0,0)
+                  WHEN src.@day == "Tuesday" THEN @@week_seq1 += (src.@week -> 0,0,tgt.cs_ext_sales_price,0,0,0,0)
+                  WHEN src.@day == "Wednesday" THEN @@week_seq1 += (src.@week -> 0,0,0,tgt.cs_ext_sales_price,0,0,0)
+                  WHEN src.@day == "Thursday" THEN @@week_seq1 += (src.@week -> 0,0,0,0,tgt.cs_ext_sales_price,0,0)
+                  WHEN src.@day == "Friday" THEN @@week_seq1 += (src.@week -> 0,0,0,0,0,tgt.cs_ext_sales_price,0)
+                  ELSE @@week_seq1 += (src.@week -> 0,0,0,0,0,0,tgt.cs_ext_sales_price)
+              END 
+        ;
+
+attr = SELECT src
+       FROM attrd2:src- (cs_sold_date_sk)->:tgt
+       WHERE tgt.cs_ext_sales_price > -1000000.0
+       ACCUM CASE WHEN src.@day == "Sunday" THEN @@week_seq2 += (src.@week -> tgt.cs_ext_sales_price,0,0,0,0,0,0)
+                  WHEN src.@day == "Monday" THEN @@week_seq2 += (src.@week -> 0,tgt.cs_ext_sales_price,0,0,0,0,0)
+                  WHEN src.@day == "Tuesday" THEN @@week_seq2 += (src.@week -> 0,0,tgt.cs_ext_sales_price,0,0,0,0)
+                  WHEN src.@day == "Wednesday" THEN @@week_seq2 += (src.@week -> 0,0,0,tgt.cs_ext_sales_price,0,0,0)
+                  WHEN src.@day == "Thursday" THEN @@week_seq2 += (src.@week -> 0,0,0,0,tgt.cs_ext_sales_price,0,0)
+                  WHEN src.@day == "Friday" THEN @@week_seq2 += (src.@week -> 0,0,0,0,0,tgt.cs_ext_sales_price,0)
+                  ELSE @@week_seq2 += (src.@week -> 0,0,0,0,0,0,tgt.cs_ext_sales_price)
+              END 
+         ;
+
+
+FOREACH (k,v1,v2,v3,v4,v5,v6,v7) IN @@week_seq2 DO
+  IF v1 != 0 AND v2 != 0 AND v3 != 0 AND v4 != 0 AND v5 != 0 AND v6 != 0 AND v7 != 0 THEN
+    FOREACH i IN RANGE [1, @@cnt1.get(k-53)*@@cnt2.get(k)] DO
+      @@result += resTuple((k-53),@@week_seq1.get(k-53).sun_sales/v1,
+                             @@week_seq1.get(k-53).mon_sales/v2,
+                             @@week_seq1.get(k-53).tue_sales/v3,
+                             @@week_seq1.get(k-53).wed_sales/v4,
+                             @@week_seq1.get(k-53).thu_sales/v5,
+                             @@week_seq1.get(k-53).fri_sales/v6,
+                             @@week_seq1.get(k-53).sat_sales/v7);
+    END;
+  END;
+END;
+
+
+}
+
+INSTALL QUERY q2
+

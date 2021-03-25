@@ -1,0 +1,84 @@
+USE GRAPH tpcds
+
+DROP QUERY q71_0
+
+
+CREATE QUERY q71_0() FOR GRAPH tpcds {
+typedef Tuple<brand string, brand_id int, hour int, minute int> resTuple;
+MapAccum<resTuple, SumAccum<double>> @@result; 
+SumAccum<int> @hour, @minute, @brand_id;
+SumAccum<string> @brand;
+SetAccum<int> @@dmap, @@tmap;
+
+Start2 = {time_dim.*};
+
+Start2 = SELECT src
+         FROM Start2:src
+         WHERE src.t_meal_time == "breakfast" OR src.t_meal_time == "dinner"
+         ACCUM @@tmap += src.t_time_sk
+              ;
+
+Start = {date_dim.*};
+
+Start = SELECT src
+        FROM Start:src
+        WHERE src.d_year == 1999 AND src.d_moy == 11
+        ACCUM @@dmap += src.d_date_sk
+              ;
+
+Start3 = {item.*};
+
+attrV (ANY) = SELECT tgt
+              FROM Start3:src - (i_item_sk)->:tgt
+              WHERE src.i_manager_id == 1
+              ;
+
+tupleV (ANY) = SELECT tgt
+               FROM attrV:src - (ss_item_sk|cs_item_sk|ws_item_sk)->:tgt
+               WHERE (@@dmap.contains(tgt.ss_sold_date_sk) AND @@tmap.contains(tgt.ss_sold_time_sk)) OR
+                     (@@dmap.contains(tgt.cs_sold_date_sk) AND @@tmap.contains(tgt.cs_sold_time_sk)) OR
+                     (@@dmap.contains(tgt.ws_sold_date_sk) AND @@tmap.contains(tgt.ws_sold_time_sk));
+
+
+//Collection
+attrV = SELECT tgt
+        FROM tupleV:src -(ss_sold_time_sk|cs_sold_time_sk|ws_sold_time_sk)->:tgt
+         ;
+
+attrV = SELECT src
+        FROM attrV:src - (t_time_sk)->:tgt
+        ACCUM src.@hour = tgt.t_hour, src.@minute = tgt.t_minute
+         ;
+
+tupleV = SELECT src
+         FROM tupleV:src - (ss_sold_time_sk|cs_sold_time_sk|ws_sold_time_sk)->:tgt
+         ACCUM src.@hour = tgt.@hour, src.@minute = tgt.@minute
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src -(ss_item_sk|cs_item_sk|ws_item_sk)->:tgt
+         ;
+
+attrV = SELECT src
+        FROM attrV:src - (i_item_sk)->:tgt
+        ACCUM src.@brand_id = tgt.i_brand_id, src.@brand = tgt.i_brand
+         ;
+
+tupleV = SELECT src
+         FROM tupleV:src - (ss_item_sk|cs_item_sk|ws_item_sk)->:tgt
+         ACCUM src.@brand_id = tgt.@brand_id, src.@brand = tgt.@brand
+         ;
+
+
+tupleV = SELECT src
+         FROM  tupleV:src
+         ACCUM CASE src.type
+                    WHEN "store_sales" THEN @@result += (resTuple(src.@brand,src.@brand_id,src.@hour,src.@minute) -> src.ss_ext_sales_price)
+                    WHEN "catalog_sales" THEN @@result += (resTuple(src.@brand,src.@brand_id,src.@hour,src.@minute) -> src.cs_ext_sales_price)
+                    ELSE @@result += (resTuple(src.@brand,src.@brand_id,src.@hour,src.@minute) -> src.ws_ext_sales_price)
+         END;
+
+
+}
+
+INSTALL QUERY q71_0

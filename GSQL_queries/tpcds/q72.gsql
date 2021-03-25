@@ -1,0 +1,107 @@
+USE GRAPH tpcds
+
+DROP QUERY q72
+
+CREATE QUERY q72() FOR GRAPH tpcds {
+typedef Tuple<int week, int qty, int wsk> iTuple;
+MapAccum<int, ListAccum<iTuple>> @@inv;
+SumAccum<string> @day;
+MapAccum<int,string> @@imap, @@wmap;
+SumAccum<int> @week, @week2;
+OrAccum @cd_filter;
+GroupByAccum<string idesc, string wname, int week, SumAccum<int> no_promo, SumAccum<int> promo, SumAccum<int> total> @@result;
+
+Start4 = {item.*};
+Start4 = SELECT src
+         FROM Start4:src
+         ACCUM @@imap += (src.i_item_sk -> src.i_item_desc)
+         ;
+
+Start1 = {warehouse.*};
+Start1 = SELECT src
+         FROM Start1:src
+         ACCUM @@wmap += (src.w_warehouse_sk -> src.w_warehouse_name)
+         ;
+
+Start = {customer_demographics.*};
+
+Start = SELECT src
+        FROM Start:src- (cd_demo_sk)->:tgt
+        WHERE src.cd_marital_status == "D"
+        ACCUM tgt.@cd_filter = true
+        ;
+
+Start2 = {date_dim.*};
+
+Start2 = SELECT src
+         FROM Start2:src- (d_date_sk)->:tgt
+         ACCUM tgt.@day = datetime_format(src.d_date,"%Y-%m-%d")
+         ;
+
+
+attrd1 = SELECT tgt
+         FROM Start2:src- (d_date_sk)->:tgt
+         WHERE src.d_year == 1999
+         ACCUM tgt.@week = src.d_week_seq
+         ;
+
+attrV =  SELECT tgt
+         FROM Start2:src- (d_week_seq)->:tgt
+         WHERE src.d_year == 1999
+         ;
+
+tupleV = SELECT tgt
+         FROM attrV:src- (d_week_seq)->:tgt
+         ;
+
+attrd2 = SELECT tgt
+         FROM tupleV:src- (d_date_sk)->:tgt
+         ACCUM tgt.@week2 = src.d_week_seq
+         ;
+
+tuple_i = SELECT src
+          FROM attrd2:src-(inv_date_sk)->:tgt
+          WHERE tgt.inv_quantity_on_hand != -1
+          ACCUM @@inv += (tgt.inv_item_sk -> iTuple(src.@week2, tgt.inv_quantity_on_hand,tgt.inv_warehouse_sk))
+          ;
+
+Start3 = {household_demographics.*};
+
+attrV = SELECT tgt
+        FROM Start3:src- (hd_demo_sk)->:tgt
+        WHERE src.hd_buy_potential == ">10000"
+        ;
+
+tuple_cs = SELECT tgt
+           FROM attrV:src- (cs_bill_hdemo_sk)->:tgt
+           ;
+
+
+tuple_cs = SELECT src
+           FROM tuple_cs:src- (cs_sold_date_sk)->:tgt
+           WHERE tgt.@week > 0
+           ACCUM src.@day = tgt.@day, src.@week = tgt.@week
+           ;
+
+tuple_cs = SELECT src
+           FROM tuple_cs:src-(cs_bill_cdemo_sk)->:tgt
+           WHERE tgt.@cd_filter 
+           ;
+
+tuple_cs = SELECT src
+           FROM tuple_cs:src-(cs_ship_date_sk)->:tgt
+           WHERE to_datetime(tgt.@day) > datetime_add(to_datetime(src.@day), INTERVAL 5 DAY)
+                 and @@inv.containsKey(src.cs_item_sk)
+           ACCUM FOREACH l IN @@inv.get(src.cs_item_sk) DO
+                   CASE WHEN l.qty < src.cs_quantity AND l.week == src.@week THEN
+                     @@result += (trim(@@imap.get(src.cs_item_sk)),@@wmap.get(l.wsk),src.@week -> 0,0,1),
+                     CASE WHEN src.cs_promo_sk == -1 THEN @@result += (trim(@@imap.get(src.cs_item_sk)),@@wmap.get(l.wsk),src.@week -> 1,0,0)
+                                                     ELSE @@result += (trim(@@imap.get(src.cs_item_sk)),@@wmap.get(l.wsk),src.@week -> 0,1,0) END
+                   END
+                 END
+       ;
+
+
+}
+
+INSTALL QUERY q72

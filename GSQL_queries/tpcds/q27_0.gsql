@@ -1,0 +1,68 @@
+USE GRAPH tpcds
+
+DROP QUERY q27_0
+
+CREATE QUERY q27_0() FOR GRAPH tpcds {
+SetAccum<int> @@dmap, @@smap;
+AvgAccum @agg1, @agg2, @agg3, @agg4, @@agg_1, @@agg_2, @@agg_3, @@agg_4;
+GroupByAccum<string item, string state, int gstate, AvgAccum agg1, AvgAccum agg2, AvgAccum agg3, AvgAccum agg4> @@result;
+
+//Reduction
+
+Start = {date_dim.*};
+
+ Start = SELECT src
+         FROM Start:src
+         WHERE src.d_year == 2002 
+         ACCUM @@dmap += src.d_date_sk
+         ;
+
+Start3 = {sstore.*};
+
+Start3 = SELECT src
+         FROM Start3:src
+         WHERE src.s_state == "TN"
+         ACCUM @@smap += src.s_store_sk
+         ;
+
+Start2 = {customer_demographics.*};
+
+    attrV (ANY) = SELECT tgt
+                  FROM Start2:src-(cd_demo_sk)->:tgt
+                  WHERE src.cd_gender == "M" AND src.cd_marital_status =="S" AND src.cd_education_status == "College"
+                  ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src- (ss_cdemo_sk)->:tgt
+             WHERE @@dmap.contains(tgt.ss_sold_date_sk) AND @@smap.contains(tgt.ss_store_sk)
+            ;
+
+//Collection
+
+attrV = SELECT tgt
+        FROM tupleV:src- (ss_item_sk)->:tgt
+        ACCUM CASE WHEN src.ss_quantity != -1 THEN tgt.@agg1 += src.ss_quantity END,
+              CASE WHEN src.ss_list_price != -1000000.0 THEN tgt.@agg2 += src.ss_list_price END,
+              CASE WHEN src.ss_coupon_amt != -1000000.0 THEN tgt.@agg3 += src.ss_coupon_amt END,
+              CASE WHEN src.ss_sales_price != -1000000.0 THEN tgt.@agg4 += src.ss_sales_price END
+       ;
+
+attrV = SELECT src
+        FROM attrV:src- (i_item_sk)->:tgt
+        ACCUM @@result += (tgt.i_item_id, "TN", 0 -> src.@agg1, src.@agg2, src.@agg3, src.@agg4)
+              ,@@result += (tgt.i_item_id, "NULL", 1 -> src.@agg1, src.@agg2, src.@agg3, src.@agg4)
+        ;
+
+
+FOREACH (k1,k2,k3,v1,v2,v3,v4) IN @@result DO
+  @@agg_1 += v1;
+  @@agg_2 += v2;
+  @@agg_3 += v3;
+  @@agg_4 += v4;
+END;
+
+@@result += ("NULL","NULL",1 -> @@agg_1,@@agg_2,@@agg_3,@@agg_4);
+
+}
+
+INSTALL QUERY q27_0

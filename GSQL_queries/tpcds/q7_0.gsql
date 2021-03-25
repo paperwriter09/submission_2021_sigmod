@@ -1,0 +1,61 @@
+USE GRAPH tpcds
+
+DROP QUERY q7_0
+
+CREATE QUERY q7_0() FOR GRAPH tpcds {
+AvgAccum @agg1, @agg2, @agg3, @agg4;
+
+SetAccum<int> @@dmap, @@pmap;
+
+Start2 = {date_dim.*};
+
+    Start2 = SELECT src
+             FROM Start2:src
+             WHERE src.d_year == 2000
+             ACCUM @@dmap += src.d_date_sk
+                  ;
+
+Start = {promotion.*};
+
+    Start = SELECT src
+            FROM Start:src
+            WHERE src.p_channel_email == "N" OR src.p_channel_event == "N"
+            ACCUM @@pmap += src.p_promo_sk
+            ;
+
+Start3 = {customer_demographics.*};
+
+    attrV (ANY) = SELECT tgt
+                  FROM Start3:src-(cd_demo_sk)->:tgt
+                  WHERE src.cd_gender == "M" AND src.cd_marital_status == "S" AND src.cd_education_status == "College"
+                  ;
+
+    tupleV (ANY) = SELECT tgt
+                   FROM attrV:src- (ss_cdemo_sk)->:tgt
+                   WHERE @@dmap.contains(tgt.ss_sold_date_sk) AND @@pmap.contains(tgt.ss_promo_sk)
+                   ;
+
+//Collection
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(ss_item_sk)->:tgt
+            ACCUM CASE WHEN src.ss_quantity > -1000000.0 THEN tgt.@agg1 += src.ss_quantity END,
+                  CASE WHEN src.ss_list_price > -1000000.0 THEN tgt.@agg2 += src.ss_list_price END,
+                  CASE WHEN src.ss_coupon_amt > -1000000.0 THEN tgt.@agg3 += src.ss_coupon_amt END,
+                  CASE WHEN src.ss_sales_price > -1000000.0 THEN tgt.@agg4 += src.ss_sales_price END
+            ;
+
+    tupleV  = SELECT tgt
+              FROM attrV:src-(i_item_sk)->:tgt
+              ACCUM tgt.@agg1 = src.@agg1, tgt.@agg2 = src.@agg2, tgt.@agg3 = src.@agg3, tgt.@agg4 = src.@agg4
+              ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(i_item_id)->:tgt
+            ACCUM tgt.@agg1 += src.@agg1, tgt.@agg2 += src.@agg2, tgt.@agg3 += src.@agg3, tgt.@agg4 += src.@agg4
+              ;
+
+
+}
+
+INSTALL QUERY q7_0

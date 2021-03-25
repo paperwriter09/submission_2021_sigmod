@@ -1,0 +1,71 @@
+USE GRAPH tpch
+
+DROP QUERY q9
+
+CREATE DISTRIBUTED QUERY q9() FOR GRAPH tpch {
+MapAccum<int, double> @costMap; // <part, price> price map since supplier sells multiple parts and to be able to compute revenue from selling a particlar part since quantity and price info is lineitem tuple and supplycost is in partsupp tuple
+MapAccum<int, SumAccum<double>> @profit; // <year, profit> profit per nation
+
+SumAccum<int> @year;
+SumAccum<double> @cost;
+
+Start = {part.*};
+
+// Reduction
+
+    attrV = SELECT tgt
+                  FROM Start:src - (P_PARTKEY:e) -> :tgt
+                  WHERE src.P_NAME LIKE "%green%"
+                  ;
+
+   attrV = SELECT src
+           FROM attrV:src - (PS_PARTKEY:e) -> :tgt
+           ACCUM src.@costMap += (tgt.PS_SUPPKEY -> tgt.PS_SUPPLYCOST)
+           ;
+
+   tupleV = SELECT tgt
+            FROM attrV:src - (L_PARTKEY:e) -> :tgt
+            ACCUM tgt.@cost = src.@costMap.get(tgt.L_SUPPKEY)
+                  ;
+
+// Collection
+    attrV = SELECT tgt
+            FROM tupleV:src - (L_ORDERKEY:e) -> :tgt
+            ;
+
+    attrV = SELECT src
+            FROM attrV:src - (O_ORDERKEY:e) -> :tgt
+            ACCUM src.@year = year(tgt.O_ORDERDATE)
+            ;
+    
+    tupleV = SELECT src
+             FROM tupleV:src - (L_ORDERKEY:e) -> :tgt
+             WHERE tgt.@year != 0
+             ACCUM src.@year = tgt.@year
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (L_SUPPKEY:e) -> :tgt
+            ACCUM tgt.@profit += (src.@year -> src.L_EXTENDEDPRICE * (1-src.L_DISCOUNT) - src.L_QUANTITY * src.@cost)
+            ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (S_SUPPKEY) -> :tgt
+             ACCUM tgt.@profit = src.@profit
+             POST-ACCUM src.@profit.clear()
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (S_NATIONKEY) -> :tgt
+            ACCUM tgt.@profit += src.@profit
+            ;
+
+tupleV = SELECT tgt
+            FROM attrV:src - (N_NATIONKEY) -> :tgt
+            ACCUM tgt.@profit = src.@profit
+            ;
+
+
+}
+
+INSTALL QUERY q9

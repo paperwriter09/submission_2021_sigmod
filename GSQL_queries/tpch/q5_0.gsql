@@ -1,0 +1,71 @@
+USE GRAPH tpch
+
+DROP QUERY q5_0
+
+CREATE QUERY q5_0() FOR GRAPH tpch {
+SumAccum<int> @c_nation, @s_nation;
+MapAccum<string, SumAccum<double>> @@result;
+MapAccum<int,string> @@nmap;
+
+
+Start = {region.*};
+
+// Reduction
+    Start = SELECT src
+            FROM Start:src
+            WHERE src.R_NAME == "ASIA"
+            ;
+
+    attrV = SELECT tgt
+            FROM Start:src - (R_REGIONKEY) -> :tgt
+                  ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (N_REGIONKEY) -> :tgt
+                   ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (N_NATIONKEY) -> :tgt
+            ACCUM @@nmap += (src.N_NATIONKEY -> src.N_NAME)
+           ;
+    
+    tupleV = SELECT tgt
+             FROM attrV:src - (C_NATIONKEY|S_NATIONKEY) -> :tgt
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - ((C_CUSTKEY|S_SUPPKEY):e) -> :tgt
+            ACCUM CASE e.type
+                 WHEN "C_CUSTKEY" THEN tgt.@c_nation = src.C_NATIONKEY
+                 WHEN "S_SUPPKEY" THEN tgt.@s_nation = src.S_NATIONKEY
+            END
+            HAVING tgt.@c_nation != 0
+            ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (O_CUSTKEY) -> :tgt
+             WHERE tgt.O_ORDERDATE >= to_datetime("1994-01-01") AND tgt.O_ORDERDATE < to_datetime("1995-01-01")
+             ACCUM tgt.@c_nation = src.@c_nation
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (O_ORDERKEY) -> :tgt
+            ACCUM tgt.@c_nation = src.@c_nation
+            ;
+
+// Collection
+    tupleV = SELECT tgt
+            FROM attrV:src - (L_ORDERKEY) -> :tgt
+            ACCUM tgt.@c_nation = src.@c_nation
+            ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (L_SUPPKEY) -> :tgt
+            WHERE tgt.@s_nation!= 0 AND src.@c_nation == tgt.@s_nation
+            ACCUM @@result += (@@nmap.get(src.@c_nation) -> src.L_EXTENDEDPRICE * (1 - src.L_DISCOUNT))
+            ;
+
+
+}
+
+INSTALL QUERY q5_0

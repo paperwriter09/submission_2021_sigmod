@@ -1,0 +1,85 @@
+//eager aggregation: agg before join
+USE GRAPH tpcds
+
+DROP QUERY q31_0
+
+CREATE QUERY q31_0() FOR GRAPH tpcds {
+SetAccum<int> @@one, @@two;
+SumAccum<double> @ss1, @ss2, @ss3, @ws1, @ws2, @ws3;
+GroupByAccum<string county, int year, SumAccum<double> web_1_2_increase, SumAccum<double> store_1_2_increase, SumAccum<double> web_2_3_increase, SumAccum<double> store_2_3_increase> @@result;
+
+
+Start = {date_dim.*};
+
+attrd = SELECT tgt
+	  FROM Start:src- (d_date_sk)->:tgt
+	  WHERE src.d_year == 2000 AND (src.d_qoy == 1 OR src.d_qoy == 2 OR src.d_qoy == 3)
+	  ACCUM CASE WHEN src.d_qoy == 1 THEN @@one += src.d_date_sk
+                     WHEN src.d_qoy == 2 THEN @@two += src.d_date_sk
+                END
+           ;
+
+//web sales
+tuple_ws = SELECT tgt
+           FROM attrd:src- (ws_sold_date_sk)->:tgt
+           ;
+
+attr_ws = SELECT tgt
+          FROM tuple_ws:src- (ws_bill_addr_sk)->:tgt
+          WHERE src.ws_ext_sales_price > -1000000.0
+          ACCUM CASE WHEN @@one.contains(src.ws_sold_date_sk) THEN tgt.@ws1 += src.ws_ext_sales_price
+                     WHEN @@two.contains(src.ws_sold_date_sk) THEN tgt.@ws2 += src.ws_ext_sales_price
+                     ELSE tgt.@ws3 += src.ws_ext_sales_price
+                END
+          ;
+
+tupleV = SELECT tgt
+         FROM attr_ws:src- (ca_address_sk)->:tgt
+         ACCUM tgt.@ws1 = src.@ws1, tgt.@ws2 = src.@ws2, tgt.@ws3 = src.@ws3
+         ;
+
+
+ca_ws = SELECT tgt
+        FROM tupleV:src- (ca_county)->:tgt
+        ACCUM tgt.@ws1 += src.@ws1, tgt.@ws2 += src.@ws2, tgt.@ws3 += src.@ws3
+        HAVING tgt.@ws1 > 0 AND tgt.@ws2 > 0 AND tgt.@ws3 != 0
+        ;
+
+//store sales
+tuple_ss = SELECT tgt
+           FROM attrd:src- (ss_sold_date_sk)->:tgt
+         ;
+
+attr_ss = SELECT tgt
+          FROM tuple_ss:src- (ss_addr_sk)->:tgt
+          WHERE src.ss_ext_sales_price > -1000000.0
+          ACCUM CASE WHEN @@one.contains(src.ss_sold_date_sk) THEN tgt.@ss1 += src.ss_ext_sales_price
+                     WHEN @@two.contains(src.ss_sold_date_sk) THEN tgt.@ss2 += src.ss_ext_sales_price
+                     ELSE tgt.@ss3 += src.ss_ext_sales_price
+                END
+          ;
+
+tupleV = SELECT tgt
+         FROM attr_ss:src- (ca_address_sk)->:tgt
+         ACCUM tgt.@ss1 = src.@ss1, tgt.@ss2 = src.@ss2, tgt.@ss3 = src.@ss3
+         ;
+
+
+ca_ss = SELECT tgt
+        FROM tupleV:src- (ca_county)->:tgt
+        ACCUM tgt.@ss1 += src.@ss1, tgt.@ss2 += src.@ss2, tgt.@ss3 += src.@ss3
+        HAVING tgt.@ss1 > 0 AND tgt.@ss2 > 0 AND tgt.@ss3 != 0
+         ;
+
+attr = ca_ss INTERSECT ca_ws;
+
+
+attr = SELECT src
+       FROM attr:src
+       WHERE (src.@ws2/src.@ws1) > (src.@ss2/src.@ss1) AND (src.@ws3/src.@ws2) > (src.@ss3/src.@ss2)
+       ACCUM @@result += (src.id, 2000 -> src.@ws2/src.@ws1, src.@ss2/src.@ss1, src.@ws3/src.@ws2, src.@ss3/src.@ss2)
+         ;
+
+}
+
+INSTALL QUERY q31_0

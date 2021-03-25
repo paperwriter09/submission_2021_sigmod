@@ -1,0 +1,73 @@
+USE GRAPH tpcds
+
+DROP QUERY q35_0
+
+CREATE QUERY q35_0() FOR GRAPH tpcds {
+SetAccum<int> @@cs_ws, @@ss;
+SumAccum<int> @cnt;
+SumAccum<string> @state;
+ListAccum<string> @states;
+GroupByAccum <string state, string gender, string marital, int dep, int emp, int college, SumAccum<int> cnt,
+                                             MinAccum<int> dep_min, MaxAccum<int> dep_max, AvgAccum dep_avg,
+                                             MinAccum<int> emp_min, MaxAccum<int> emp_max, AvgAccum emp_avg,
+                                             MinAccum<int> col_min, MaxAccum<int> col_max, AvgAccum col_avg> @@result;
+
+//Reduction
+Start3 = {customer_address.*};
+
+Start3 = SELECT tgt
+         FROM Start3:src-(ca_address_sk)->:tgt
+         ACCUM tgt.@state = src.ca_state
+        ;
+
+Start = {date_dim.*};
+
+attrd = SELECT tgt
+	FROM Start:src- (d_date_sk)->:tgt
+	WHERE src.d_year == 2002 AND src.d_qoy < 4
+	  ;
+
+attrV = SELECT src
+        FROM attrd:src- (cs_sold_date_sk)->:tgt
+        WHERE tgt.outdegree("cs_ship_customer_sk") > 0
+        ACCUM @@cs_ws += tgt.cs_ship_customer_sk
+        ;
+
+attrV = SELECT src
+        FROM attrd:src- (ws_sold_date_sk)->:tgt
+        WHERE tgt.outdegree("ws_bill_customer_sk") > 0
+        ACCUM @@cs_ws += tgt.ws_bill_customer_sk
+        ;
+
+attrd = SELECT src
+        FROM attrd:src- (ss_sold_date_sk)->:tgt
+        WHERE tgt.outdegree("ss_customer_sk") > 0 AND @@cs_ws.contains(tgt.ss_customer_sk)
+        ACCUM @@ss += tgt.ss_customer_sk
+        ;
+
+
+//Collection
+Start2 = {customer.*};
+
+tupleV = SELECT src
+         FROM Start2:src- (c_current_addr_sk)->:tgt
+         WHERE @@ss.contains(src.c_customer_sk)
+         ACCUM src.@state = tgt.@state
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (c_current_cdemo_sk)->:tgt
+        ACCUM tgt.@cnt += 1, tgt.@states += src.@state
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (cd_demo_sk)->:tgt
+        ACCUM FOREACH s IN src.@states DO
+                @@result += (s,tgt.cd_gender,tgt.cd_marital_status,tgt.cd_dep_count, tgt.cd_dep_employed_count, tgt.cd_dep_college_count -> src.@cnt, tgt.cd_dep_count,tgt.cd_dep_count,tgt.cd_dep_count,tgt.cd_dep_employed_count,tgt.cd_dep_employed_count,tgt.cd_dep_employed_count,tgt.cd_dep_college_count,tgt.cd_dep_college_count,tgt.cd_dep_college_count)
+              END
+        ;
+
+
+}
+
+INSTALL QUERY q35_0

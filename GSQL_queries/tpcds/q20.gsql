@@ -1,0 +1,67 @@
+USE GRAPH tpcds
+
+DROP QUERY q20
+
+CREATE QUERY q20() FOR GRAPH tpcds {
+SumAccum<double> @item_revenue, @class_revenue, @@null_class_revenue;
+AvgAccum @revenueratio;
+OrAccum @i_filter;
+
+
+Start = {attribute_date.*};
+
+//Reduction
+
+    tupleV (ANY) = SELECT tgt
+                   FROM Start:src- (d_date)->:tgt
+                   WHERE src.id >= to_datetime("1999-02-22") AND src.id <= to_datetime("1999-03-24")
+                   ;
+
+    attrV (ANY) = SELECT tgt
+                   FROM tupleV:src- (d_date_sk)->:tgt
+                   ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src- (cs_sold_date_sk)->:tgt
+             ;
+
+Start2 = {item.*};
+
+    attrV = SELECT tgt
+            FROM Start2:src-(i_item_sk)->:tgt
+            WHERE src.i_category == "Sports" OR src.i_category == "Books" OR src.i_category == "Home"
+            ACCUM tgt.@i_filter = true
+            ;
+
+//Collection
+
+   attrV = SELECT tgt
+           FROM tupleV:src-(cs_item_sk)->:tgt
+           WHERE tgt.@i_filter AND src.cs_ext_sales_price > -1000000.0
+           ACCUM tgt.@item_revenue += src.cs_ext_sales_price
+           ;
+           
+   tupleV_out = SELECT tgt
+                FROM attrV:src- (i_item_sk)->:tgt
+                ACCUM tgt.@item_revenue = src.@item_revenue, IF tgt.i_class == "NULL" THEN @@null_class_revenue += src.@item_revenue END
+                ;
+
+
+   tupleV = SELECT src
+            FROM tupleV_out:src-(i_class)->:tgt
+            ACCUM tgt.@class_revenue += src.@item_revenue
+            ;
+
+   tupleV = SELECT src
+            FROM tupleV:src-(i_class)->:tgt
+            ACCUM src.@revenueratio = src.@item_revenue * 100/tgt.@class_revenue
+            ;
+
+    tupleV = SELECT src
+             FROM tupleV_out:src
+             ACCUM IF src.i_class == "NULL" THEN src.@revenueratio = src.@item_revenue * 100/@@null_class_revenue END
+             ;
+
+}
+
+INSTALL QUERY q20

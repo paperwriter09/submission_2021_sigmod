@@ -1,0 +1,61 @@
+USE GRAPH tpcds
+
+DROP QUERY q79_0
+
+CREATE QUERY q79_0() FOR GRAPH tpcds {
+typedef Tuple<string name, string city, int ticket, double amt, double profit> resTuple;
+ListAccum<resTuple> @@result;
+SetAccum<int> @@hd;
+MapAccum<int,string> @@name, @@city;
+GroupByAccum<int ticket, int custsk, int addr, string city, SumAccum<double> amt, SumAccum<double> profit> @@ms;
+
+//Reduction
+Start2 = {household_demographics.*};
+
+Start2 = SELECT src
+         FROM Start2:src
+         WHERE src.hd_dep_count == 6 OR src.hd_vehicle_count > 2
+         ACCUM @@hd += src.hd_demo_sk
+         ;
+
+Start3 = {sstore.*};
+
+Start3 = SELECT src
+         FROM Start3:src
+         WHERE src.s_number_employees >= 200 AND src.s_number_employees <= 295
+         ACCUM @@city += (src.s_store_sk -> src.s_city)
+         ;
+
+Start = {date_dim.*};
+
+attrV = SELECT tgt
+	  FROM Start:src- (d_date_sk)->:tgt
+	  WHERE (src.d_year == 1999 OR src.d_year == 2000 OR src.d_year == 2001) AND src.d_dow == 1 
+	  ;
+
+tupleV = SELECT tgt
+	 FROM attrV:src- (ss_sold_date_sk)->:tgt
+         WHERE @@hd.contains(tgt.ss_hdemo_sk) AND @@city.containsKey(tgt.ss_store_sk)
+         ACCUM CASE WHEN tgt.ss_customer_sk != -1 THEN
+                 @@ms += (tgt.ss_ticket_number, tgt.ss_customer_sk, tgt.ss_addr_sk, @@city.get(tgt.ss_store_sk) -> tgt.ss_coupon_amt,tgt.ss_net_profit) 
+               END
+        ;
+
+
+attrV = SELECT tgt
+        FROM tupleV:src- (ss_customer_sk)->:tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (c_customer_sk)->:tgt
+        ACCUM @@name += (src.id -> tgt.c_last_name + "," + tgt.c_first_name)
+       ;
+
+FOREACH (k1,k2,k3,k4,v1,v2) IN @@ms DO
+  @@result += resTuple(@@name.get(k2),k4,k1,v1,v2);
+END;
+
+  
+}
+
+INSTALL QUERY q79_0

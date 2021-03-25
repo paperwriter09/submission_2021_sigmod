@@ -1,0 +1,63 @@
+USE GRAPH tpcds
+
+DROP QUERY q21_0
+
+
+CREATE QUERY q21_0() FOR GRAPH tpcds {
+typedef Tuple<wh string, item string, inv_before int, inv_after int> resTuple;
+ListAccum<resTuple> @@resultFinal;
+GroupByAccum<string wh, string item, SumAccum<int> inv_before, SumAccum<int> inv_after> @@result;
+MapAccum<int,string> @@item, @@wh;
+OrAccum @before;
+
+
+Start2 = {item.*};
+
+Start2 = SELECT src
+         FROM Start2:src
+         WHERE src.i_current_price >= 0.99 AND src.i_current_price <= 1.49
+         ACCUM @@item += (src.i_item_sk -> src.i_item_id) 
+        ;
+
+Start3 = {warehouse.*};
+
+Start3 = SELECT src
+        FROM Start3:src
+        ACCUM @@wh += (src.w_warehouse_sk -> src.w_warehouse_name)
+        ;
+
+Start = {attribute_date.*};
+
+tupleV = SELECT tgt
+         FROM Start:src- (d_date)->:tgt
+         WHERE src.id >= to_datetime("2000-02-10") AND src.id <= to_datetime("2000-04-10")
+         ACCUM CASE WHEN src.id < to_datetime("2000-03-11")
+                          THEN tgt.@before = true END 
+               ;
+
+attrV (ANY) = SELECT tgt
+              FROM tupleV:src- (d_date_sk)->:tgt
+              ACCUM tgt.@before = src.@before
+              ;
+
+attrV = SELECT src
+         FROM attrV:src - (inv_date_sk)->:tgt
+         WHERE tgt.inv_quantity_on_hand != -1 AND @@item.containsKey(tgt.inv_item_sk) AND @@wh.containsKey(tgt.inv_warehouse_sk)
+         ACCUM CASE WHEN src.@before
+                    THEN @@result += (@@wh.get(tgt.inv_warehouse_sk),@@item.get(tgt.inv_item_sk) -> tgt.inv_quantity_on_hand, 0)
+                    ELSE @@result += (@@wh.get(tgt.inv_warehouse_sk),@@item.get(tgt.inv_item_sk) -> 0, tgt.inv_quantity_on_hand)
+               END
+         ;
+
+//Construct final output tuples
+
+FOREACH (k1,k2,v1,v2) IN @@result DO
+   CASE WHEN v2/v1 >= 0.666666 AND v2/v1 <= 1.50 
+        THEN @@resultFinal += resTuple(k1,k2,v1,v2);
+   END;
+END;
+
+
+}
+
+INSTALL QUERY q21_0

@@ -1,0 +1,81 @@
+USE GRAPH tpcds
+
+DROP QUERY q94
+
+CREATE QUERY q94() FOR GRAPH tpcds {
+OrAccum @d_filter, @ws_filter;
+SetAccum<int> @whouses, @@order_count;
+SumAccum<double> @@total_shipping_cost, @@total_net_profit;
+
+//Reduction
+Start3 = {web_site.*};
+
+    Start3 = SELECT src
+             FROM Start3:src-(web_site_sk)->:tgt
+             WHERE src.web_company_name == "pri"
+             ACCUM tgt.@ws_filter = true
+             ;
+
+Start = {attribute_date.*};
+
+    tupleV (ANY) = SELECT tgt
+                   FROM Start:src- (d_date)->:tgt
+                   WHERE src.id >= to_datetime("1999-02-01") AND src.id <= to_datetime("1999-04-02")
+                 ;
+
+    tupleV = SELECT src
+             FROM tupleV:src- (d_date_sk)->:tgt
+             ACCUM tgt.@d_filter = true
+                  ;
+
+Start2 = {customer_address.*};
+
+    attrV (ANY) = SELECT tgt
+                  FROM Start2:src-(ca_address_sk)->:tgt
+                  WHERE src.ca_state == "IL"
+                  ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src- (ws_ship_addr_sk)->:tgt
+            ;
+        
+    tupleV = SELECT src
+             FROM tupleV:src- (ws_ship_date_sk)->:tgt
+             WHERE tgt.@d_filter
+             ;
+
+    tupleV = SELECT src
+             FROM tupleV:src - (ws_web_site_sk) -> :tgt
+             WHERE tgt.@ws_filter
+             ;
+
+    tupleV = SELECT src
+             FROM tupleV:src - (ws_order_number) -> :tgt
+             WHERE src.ws_warehouse_sk != -1 AND tgt.outdegree("wr_order_number") == 0
+             ;
+   
+    attrV = SELECT tgt
+            FROM tupleV:src - (ws_order_number) -> :tgt
+            ACCUM tgt.@whouses += src.ws_warehouse_sk
+            ;
+    
+    attrV = SELECT src
+            FROM attrV:src - (ws_order_number) -> :tgt
+            WHERE tgt.ws_warehouse_sk != -1
+            ACCUM src.@whouses += tgt.ws_warehouse_sk
+            ;
+
+//Collection
+    tupleV = SELECT src
+             FROM tupleV:src - (ws_order_number) -> :tgt
+             WHERE tgt.@whouses.size() > 1
+             ACCUM @@order_count += src.ws_order_number,
+                   CASE WHEN src.ws_ext_ship_cost != -1000000.0 THEN @@total_shipping_cost += src.ws_ext_ship_cost END,
+                   CASE WHEN src.ws_net_profit != -1000000.0 THEN @@total_net_profit += src.ws_net_profit END;
+
+
+//PRINT @@order_count.size(), @@total_shipping_cost, @@total_net_profit;
+
+}
+
+INSTALL QUERY q94

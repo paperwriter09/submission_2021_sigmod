@@ -1,0 +1,75 @@
+USE GRAPH tpcds
+
+DROP QUERY q53_0
+
+CREATE QUERY q53_0() FOR GRAPH tpcds {
+MapAccum<int,int> @@quarter;
+SumAccum<double> @sum_sales_1, @sum_sales_2, @sum_sales_3, @sum_sales_4;
+AvgAccum @avg_quarter_sales;
+
+Start = {date_dim.*};
+
+Start = SELECT src
+        FROM Start:src
+        WHERE src.d_month_seq == 1200 OR src.d_month_seq == 1201 OR src.d_month_seq == 1202 OR src.d_month_seq == 1203 OR src.d_month_seq == 1204 OR src.d_month_seq == 1205 OR
+              src.d_month_seq == 1206 OR src.d_month_seq == 1207 OR src.d_month_seq == 1208 OR src.d_month_seq == 1209 OR src.d_month_seq == 1210 OR src.d_month_seq == 1211
+        ACCUM @@quarter += (src.d_date_sk -> src.d_qoy)
+        ;
+
+Start2 = {item.*};
+
+attrV (ANY) = SELECT tgt
+              FROM Start2:src - (i_item_sk)->:tgt
+              WHERE ((src.i_category == "Books" OR src.i_category == "Children" OR src.i_category == "Electronics") AND
+              (src.i_class == "personal" OR src.i_class == "portable" OR src.i_class == "reference" OR src.i_class == "self-help") AND
+              (src.i_brand == "scholaramalgamalg #14" OR src.i_brand == "scholaramalgamalg #7" OR src.i_brand == "exportiunivamalg #9" OR src.i_brand == "scholaramalgamalg #9")) OR
+        
+              ((src.i_category == "Women" OR src.i_category == "Music" OR src.i_category == "Men") AND
+               (src.i_class == "accessories" OR src.i_class == "classical" OR src.i_class == "fragrances" OR src.i_class == "pants") AND
+               (src.i_brand == "amalgimporto #1" OR src.i_brand == "edu packscholar #1" OR src.i_brand == "exportiimporto #1" OR src.i_brand == "importoamalg #1"))
+              ;
+
+attrV =  SELECT src
+         FROM attrV:src - (ss_item_sk)->:tgt
+         WHERE tgt.outdegree("ss_store_sk") > 0 AND @@quarter.containsKey(tgt.ss_sold_date_sk) //AND tgt.ss_sales_price > -1000000.0
+         ACCUM CASE WHEN tgt.ss_sales_price > -1000000.0 THEN
+                   CASE WHEN @@quarter.get(tgt.ss_sold_date_sk) == 1 THEN src.@sum_sales_1 += tgt.ss_sales_price
+                        WHEN @@quarter.get(tgt.ss_sold_date_sk) == 2 THEN src.@sum_sales_2 += tgt.ss_sales_price
+                        WHEN @@quarter.get(tgt.ss_sold_date_sk) == 3 THEN src.@sum_sales_3 += tgt.ss_sales_price
+                        ELSE src.@sum_sales_4 += tgt.ss_sales_price
+                   END
+              END
+;
+
+tupleV = SELECT tgt
+        FROM attrV:src -(i_item_sk)->:tgt
+        ACCUM tgt.@sum_sales_1 = src.@sum_sales_1, tgt.@sum_sales_2 = src.@sum_sales_2, tgt.@sum_sales_3 = src.@sum_sales_3, tgt.@sum_sales_4 = src.@sum_sales_4
+        POST-ACCUM src.@sum_sales_1 = 0, src.@sum_sales_2 = 0, src.@sum_sales_3 = 0, src.@sum_sales_4 = 0
+        ;
+
+
+attr = SELECT tgt
+        FROM tupleV:src -(i_manufact_id)->:tgt
+        ACCUM tgt.@sum_sales_1 += src.@sum_sales_1, tgt.@sum_sales_2 += src.@sum_sales_2, tgt.@sum_sales_3 += src.@sum_sales_3, tgt.@sum_sales_4 += src.@sum_sales_4
+        POST-ACCUM 
+               CASE WHEN tgt.@sum_sales_1 > 0 THEN tgt.@avg_quarter_sales += tgt.@sum_sales_1 END, 
+               CASE WHEN tgt.@sum_sales_2 > 0 THEN tgt.@avg_quarter_sales += tgt.@sum_sales_2 END,
+               CASE WHEN tgt.@sum_sales_3 > 0 THEN tgt.@avg_quarter_sales += tgt.@sum_sales_3 END,
+               CASE WHEN tgt.@sum_sales_4 > 0 THEN tgt.@avg_quarter_sales += tgt.@sum_sales_4 END
+        ; 
+
+attr = SELECT src
+       FROM attr:src
+       ACCUM CASE WHEN src.@sum_sales_1 > 0 AND NOT (abs(src.@sum_sales_1-src.@avg_quarter_sales)/src.@avg_quarter_sales) > 0.1
+                         THEN src.@sum_sales_1 = 0 END,
+             CASE WHEN src.@sum_sales_2 > 0 AND NOT (abs(src.@sum_sales_2-src.@avg_quarter_sales)/src.@avg_quarter_sales) > 0.1
+                         THEN src.@sum_sales_2 = 0 END,
+             CASE WHEN src.@sum_sales_3 > 0 AND NOT (abs(src.@sum_sales_3-src.@avg_quarter_sales)/src.@avg_quarter_sales) > 0.1
+                         THEN src.@sum_sales_3 = 0 END,
+             CASE WHEN src.@sum_sales_4 > 0 AND NOT (abs(src.@sum_sales_4-src.@avg_quarter_sales)/src.@avg_quarter_sales) > 0.1
+                         THEN src.@sum_sales_4 = 0 END
+       ;
+
+}
+
+INSTALL QUERY q53_0

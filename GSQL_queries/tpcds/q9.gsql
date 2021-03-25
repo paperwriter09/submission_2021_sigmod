@@ -1,0 +1,116 @@
+USE GRAPH tpcds
+
+DROP QUERY q9
+
+CREATE QUERY q9() FOR GRAPH tpcds {
+AvgAccum  @@b1, @@b2, @@b3, @@b4, @@b5;
+
+
+Start = {store_sales.*};
+ 
+bucket = SELECT src
+          FROM Start:src
+          WHERE src.ss_quantity >= 1 AND src.ss_quantity <= 20
+       ;
+
+IF bucket.size() > 74129 THEN
+    bucket = SELECT src
+              FROM bucket:src
+              ACCUM CASE WHEN src.ss_ext_discount_amt > -1000000.0 THEN @@b1 += src.ss_ext_discount_amt
+                    END
+              ;
+ELSE
+    bucket = SELECT src
+              FROM bucket:src
+              ACCUM CASE WHEN src.ss_net_paid > -1000000.0 THEN @@b1 += src.ss_net_paid
+                    END
+              ;
+END;
+
+Start = Start MINUS bucket;
+
+bucket = SELECT src
+          FROM Start:src
+          WHERE src.ss_quantity >= 21 AND src.ss_quantity <= 40
+       ;
+
+IF bucket.size() > 122840 THEN
+    bucket = SELECT src
+              FROM bucket:src
+              ACCUM CASE WHEN src.ss_ext_discount_amt > -1000000.0 THEN @@b2 += src.ss_ext_discount_amt
+                    END
+              ;
+ELSE
+    bucket = SELECT src
+              FROM bucket:src
+              ACCUM CASE WHEN src.ss_net_paid > -1000000.0 THEN @@b2 += src.ss_net_paid
+                    END
+              ;
+END;
+
+Start = Start MINUS bucket;
+
+bucket = SELECT src
+          FROM Start:src
+          WHERE src.ss_quantity >= 41 AND src.ss_quantity <= 60
+       ;
+
+IF bucket.size() > 56580 THEN
+    bucket = SELECT src
+              FROM bucket:src
+              ACCUM CASE WHEN src.ss_ext_discount_amt > -1000000.0 THEN @@b3 += src.ss_ext_discount_amt
+                    END
+              ;
+ELSE
+    bucket = SELECT src
+              FROM bucket:src
+              ACCUM CASE WHEN src.ss_net_paid > -1000000.0 THEN @@b3 += src.ss_net_paid
+                    END
+              ;
+END;
+
+Start = Start MINUS bucket;
+
+bucket = SELECT src
+          FROM Start:src
+          WHERE src.ss_quantity >= 61 AND src.ss_quantity <= 80
+       ;
+
+IF bucket.size() > 10097 THEN
+    bucket = SELECT src
+              FROM bucket:src
+              ACCUM CASE WHEN src.ss_ext_discount_amt > -1000000.0 THEN @@b4 += src.ss_ext_discount_amt
+                    END
+              ;
+ELSE
+    bucket = SELECT src
+              FROM bucket:src
+              ACCUM CASE WHEN src.ss_net_paid > -1000000.0 THEN @@b4 += src.ss_net_paid
+                    END
+              ;
+END;
+Start = Start MINUS bucket;
+
+bucket = SELECT src
+          FROM Start:src
+          WHERE src.ss_quantity >= 81 AND src.ss_quantity <= 100
+       ;
+
+IF bucket.size() > 165306 THEN
+    bucket = SELECT src
+              FROM bucket:src
+              ACCUM CASE WHEN src.ss_ext_discount_amt > -1000000.0 THEN @@b5 += src.ss_ext_discount_amt
+                    END
+              ;
+ELSE
+    bucket = SELECT src
+              FROM bucket:src
+              ACCUM CASE WHEN src.ss_net_paid > -1000000.0 THEN @@b5 += src.ss_net_paid
+                    END
+              ;
+END;
+
+
+}
+
+INSTALL QUERY q9

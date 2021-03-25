@@ -1,0 +1,87 @@
+USE GRAPH tpcds
+
+DROP QUERY q61
+
+CREATE QUERY q61() FOR GRAPH tpcds {
+OrAccum @i_filter, @c_filter, @s_filter, @p_filter;
+SumAccum<double> @@promotions, @@total, @@promo_ration;
+
+Start2 = {item.*};
+
+    attrV (ANY) = SELECT tgt
+                  FROM Start2:src-(i_item_sk)->:tgt
+                  WHERE src.i_category == "Jewelry"
+                  ACCUM tgt.@i_filter = true
+                  ;
+
+Start1 = {promotion.*};
+
+    attrV = SELECT tgt
+            FROM Start1:src-(p_promo_sk)->:tgt
+            WHERE src.p_channel_dmail == "Y" OR src.p_channel_email == "Y" OR src.p_channel_tv == "Y"
+            ACCUM tgt.@p_filter = true
+            ;
+
+Start3 = {sstore.*};
+
+    attrV = SELECT tgt
+            FROM Start3:src-(s_store_sk)->:tgt
+            WHERE src.s_gmt_offset == -5
+            ACCUM tgt.@s_filter = true
+            ;
+
+Start4 = {customer_address.*};
+
+    attrV = SELECT tgt
+            FROM Start4:src-(ca_address_sk)->:tgt
+            WHERE src.ca_gmt_offset == -5
+            ;
+
+    tupleV  = SELECT tgt
+              FROM attrV:src- (c_current_addr_sk)->:tgt
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(c_customer_sk)->:tgt
+            ACCUM tgt.@c_filter = true
+            ;
+
+Start = {date_dim.*};
+
+    attrV = SELECT tgt
+            FROM Start:src- (d_date_sk)->:tgt
+            WHERE src.d_year == 1998 AND src.d_moy == 11
+            ;
+
+    tuple_ss= SELECT tgt
+              FROM attrV:src- (ss_sold_date_sk)->:tgt
+              ;
+
+    tuple_ss = SELECT src
+               FROM tuple_ss:src- (ss_item_sk)->:tgt
+               WHERE tgt.@i_filter
+                ;
+
+    tuple_ss = SELECT src
+               FROM tuple_ss:src- (ss_customer_sk)->:tgt
+               WHERE tgt.@c_filter
+                ;
+
+//Collection
+tuple_ss = SELECT src
+           FROM tuple_ss:src- (ss_store_sk)->:tgt
+           WHERE tgt.@s_filter AND src.ss_ext_sales_price > -1000000.0
+           ACCUM @@total += src.ss_ext_sales_price
+            ;
+
+tuple_ss = SELECT src
+           FROM tuple_ss:src- (ss_promo_sk)->:tgt
+           WHERE tgt.@p_filter
+           ACCUM @@promotions += src.ss_ext_sales_price
+           ;
+
+@@promo_ration = (@@promotions/@@total)*100;
+
+}
+
+INSTALL QUERY q61

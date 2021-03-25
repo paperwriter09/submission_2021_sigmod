@@ -1,0 +1,50 @@
+USE GRAPH tpcds
+
+DROP QUERY q3_0
+
+
+CREATE QUERY q3_0() FOR GRAPH tpcds {
+typedef Tuple<dyear int, brandid int, brand string> resTuple;
+MapAccum<resTuple, SumAccum<double>> @@result;
+
+SumAccum<int> @d_year,@brandid;
+SumAccum<string> @brand;
+MapAccum<int,int> @@dmap;
+
+
+//Reduction
+Start2 = {date_dim.*};
+
+    Start2  = SELECT src
+              FROM Start2:src
+              WHERE src.d_moy == 11
+              ACCUM @@dmap += (src.d_date_sk -> src.d_year)
+                  ;
+
+Start = {item.*};
+
+    attrV (ANY) = SELECT tgt
+            FROM Start:src- (i_item_sk)->:tgt
+            WHERE src.i_manufact_id == 128
+            ACCUM tgt.@brandid = src.i_brand_id, tgt.@brand = src.i_brand
+            ;
+
+   tupleV = SELECT tgt
+            FROM attrV:src - (ss_item_sk)->:tgt
+            WHERE @@dmap.containsKey(tgt.ss_sold_date_sk)
+            ACCUM tgt.@d_year = @@dmap.get(tgt.ss_sold_date_sk)
+            ;
+
+
+//Collection
+    tupleV = SELECT src
+             FROM tupleV:src-(ss_item_sk)->:tgt
+             ACCUM CASE WHEN src.ss_ext_sales_price > -1000000.0 
+                        THEN @@result += (resTuple(src.@d_year, tgt.@brandid, tgt.@brand) -> src.ss_ext_sales_price)
+                   END
+             ;
+
+
+}
+
+INSTALL QUERY q3_0

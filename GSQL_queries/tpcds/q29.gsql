@@ -1,0 +1,101 @@
+USE GRAPH tpcds
+
+DROP QUERY q29
+
+CREATE QUERY q29() FOR GRAPH tpcds {
+OrAccum @d1;
+SumAccum<int> @cs, @sr, @ss;
+SumAccum<string> @store;
+ListAccum<string> @stores;
+GroupByAccum<string item, string des, string storeid, SumAccum<double> sum1, SumAccum<double> sum2, SumAccum<double> sum3> @@result;
+ListAccum<int> @customers;
+SetAccum<VERTEX<attribute_int>> @@attrd2;
+
+//Reduction
+
+Start = {date_dim.*};
+
+attrd = SELECT tgt
+        FROM Start:src- (d_date_sk)->:tgt
+	WHERE src.d_year == 1999 OR src.d_year == 2000 OR src.d_year == 2001
+	ACCUM CASE WHEN src.d_year == 1999 AND src.d_moy == 9 THEN tgt.@d1 = true END,
+              CASE WHEN src.d_year == 1999 AND src.d_moy >= 9 AND src.d_moy <= 12 THEN @@attrd2 += tgt END 
+              ;
+
+tuple_cs = SELECT tgt
+           FROM attrd:src- (cs_sold_date_sk)->:tgt
+           WHERE tgt.outdegree("cs_bill_customer_sk") > 0
+           ;
+
+attrV = SELECT tgt
+        FROM tuple_cs:src- (cs_item_sk)->:tgt
+        ACCUM tgt.@customers += src.cs_bill_customer_sk
+        ;
+
+attrd = @@attrd2;
+tuple_sr = SELECT tgt
+	   FROM attrd:src- (sr_returned_date_sk)->:tgt
+           WHERE tgt.outdegree("sr_customer_sk") > 0 //AND src.@d2
+           ;
+
+tuple_ss = SELECT tgt
+           FROM tuple_sr:src- (ss_sr_ticket_item)->:tgt
+           WHERE src.sr_customer_sk == tgt.ss_customer_sk
+           ;
+
+tuple_ss = SELECT src
+           FROM tuple_ss:src- (ss_sold_date_sk)->:tgt
+           WHERE tgt.@d1
+           ;
+
+tuple_ss = SELECT src
+           FROM tuple_ss:src- (ss_item_sk)->:tgt
+           WHERE tgt.@customers.contains(src.ss_customer_sk)
+           POST-ACCUM tgt.@customers.clear()
+           ;
+
+//Collection
+attrV = SELECT tgt
+        FROM tuple_ss:src- (ss_store_sk)->:tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (s_store_sk)->:tgt
+        ACCUM src.@store += tgt.s_store_id + "," + tgt.s_store_name
+        ;
+
+tuple_ss = SELECT src
+           FROM tuple_ss:src- (ss_store_sk)->:tgt
+           ACCUM src.@store = tgt.@store
+           ;
+
+attrV = SELECT tgt
+        FROM tuple_ss:src- (ss_item_sk)->:tgt
+        ACCUM CASE WHEN src.ss_quantity != -1 THEN tgt.@ss += src.ss_quantity END,
+              tgt.@stores += src.@store,
+              tgt.@customers += src.ss_customer_sk
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (cs_item_sk)->:tgt
+        WHERE src.@customers.contains(tgt.cs_bill_customer_sk)
+        ACCUM CASE WHEN tgt.cs_quantity != -1 THEN src.@cs += tgt.cs_quantity END
+         ;
+
+attrV = SELECT src
+        FROM attrV:src- (sr_item_sk)->:tgt
+        WHERE src.@customers.contains(tgt.sr_customer_sk)
+        ACCUM CASE WHEN tgt.sr_return_quantity != -1 THEN src.@sr += tgt.sr_return_quantity END
+       ;
+
+
+attrV = SELECT src
+        FROM attrV:src- (i_item_sk)->:tgt
+        ACCUM FOREACH s IN src.@stores DO
+               @@result += (tgt.i_item_id, tgt.i_item_desc, s -> src.@ss, src.@sr, src.@cs)
+              END
+         ;
+
+}
+
+INSTALL QUERY q29

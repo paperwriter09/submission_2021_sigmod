@@ -1,0 +1,78 @@
+USE GRAPH tpcds
+
+DROP QUERY q76
+
+CREATE QUERY q76() FOR GRAPH tpcds {
+MapAccum<int, int> @@year, @@qoy;
+MapAccum<int, string> @@categ;
+
+GroupByAccum<int year, int quarter, string category, SumAccum<int> cnt, SumAccum<double> sales> @@result_ss, @@result_cs, @@result_ws;
+
+GroupByAccum<string channel, string col,int year, int quarter, string category, SumAccum<int> cnt, SumAccum<double> sales> @@result;
+
+Start = {date_dim.*};
+
+Start = SELECT src
+	      FROM Start:src
+	      ACCUM @@year += (src.d_date_sk -> src.d_year),
+              @@qoy += (src.d_date_sk -> src.d_qoy)     
+        ;
+
+Start2 = {item.*};
+
+Start2 = SELECT src
+         FROM Start2:src
+         ACCUM @@categ += (src.i_item_sk -> src.i_category)     
+        ;
+
+ss = {store_sales.*};
+
+ss = SELECT src
+     FROM ss:src
+     WHERE src.outdegree("ss_sold_date_sk") > 0 AND src.outdegree("ss_item_sk") > 0 AND src.ss_store_sk == -1
+     ACCUM @@result_ss += (@@year.get(src.ss_sold_date_sk),@@qoy.get(src.ss_sold_date_sk),@@categ.get(src.ss_item_sk) -> 1,0),
+           CASE WHEN src.ss_ext_sales_price > -1000000.0
+           THEN @@result_ss += (@@year.get(src.ss_sold_date_sk),@@qoy.get(src.ss_sold_date_sk),@@categ.get(src.ss_item_sk) -> 0,src.ss_ext_sales_price)
+           END
+     ;
+
+
+cs = {catalog_sales.*};
+
+cs = SELECT src
+     FROM cs:src
+     WHERE src.outdegree("cs_sold_date_sk") > 0 AND src.outdegree("cs_item_sk") > 0 AND src.cs_ship_addr_sk == -1
+     ACCUM @@result_cs += (@@year.get(src.cs_sold_date_sk),@@qoy.get(src.cs_sold_date_sk),@@categ.get(src.cs_item_sk) -> 1,0),
+           CASE WHEN src.cs_ext_sales_price > -1000000.0
+           THEN @@result_cs += (@@year.get(src.cs_sold_date_sk),@@qoy.get(src.cs_sold_date_sk),@@categ.get(src.cs_item_sk) -> 0,src.cs_ext_sales_price)
+           END 
+     ;
+
+ws = {web_sales.*};
+
+ws = SELECT src
+     FROM ws:src
+     WHERE src.outdegree("ws_sold_date_sk") > 0 AND src.outdegree("ws_item_sk") > 0 AND src.ws_ship_customer_sk == -1 
+     ACCUM @@result_ws += (@@year.get(src.ws_sold_date_sk),@@qoy.get(src.ws_sold_date_sk),@@categ.get(src.ws_item_sk) -> 1,0),
+           CASE WHEN src.ws_ext_sales_price > -1000000.0
+           THEN @@result_ws += (@@year.get(src.ws_sold_date_sk),@@qoy.get(src.ws_sold_date_sk),@@categ.get(src.ws_item_sk) -> 0,src.ws_ext_sales_price)
+           END
+;
+
+
+
+FOREACH (k1,k2,k3,v1,v2) IN @@result_ss DO
+ @@result += ("store","ss_store_sk",k1,k2,k3 -> v1,v2);
+END;
+
+FOREACH (k1,k2,k3,v1,v2) IN @@result_cs DO
+ @@result += ("catalog","cs_ship_addr_sk",k1,k2,k3 -> v1,v2);
+END;
+
+FOREACH (k1,k2,k3,v1,v2) IN @@result_ws DO
+ @@result += ("web","ws_ship_customer_sk",k1,k2,k3 -> v1,v2);
+END;
+
+}
+
+INSTALL QUERY q76

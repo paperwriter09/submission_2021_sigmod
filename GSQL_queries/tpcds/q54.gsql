@@ -1,0 +1,127 @@
+USE GRAPH tpcds
+
+DROP QUERY q54
+
+CREATE QUERY q54() FOR GRAPH tpcds {
+OrAccum @d_filter, @ss_filter;
+SumAccum<int> @@month, @cnt;
+ListAccum<int> @@seq;
+ListAccum<string> @states;
+SumAccum<double> @revenue;
+MapAccum<int, SumAccum<int>> @@result;
+
+//Reduction
+Start3 = {sstore.*};
+
+Start3 = SELECT src
+        FROM Start3:src-(s_state)->:tgt
+        WHERE tgt.outdegree("ca_state") > 0
+        ACCUM src.@states = src.s_state
+        ;
+
+attrV = SELECT tgt
+        FROM Start3:src-(s_county)->:tgt
+        WHERE tgt.outdegree("ca_county") > 0
+        ACCUM tgt.@states += src.@states
+        ;
+
+tupleV = SELECT tgt
+         FROM attrV:src-(ca_county)->:tgt
+         WHERE src.@states.contains(tgt.ca_state)
+         ACCUM tgt.@cnt += src.@states.size()
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src-(ca_address_sk)->:tgt
+        ACCUM tgt.@cnt = src.@cnt
+        ;
+
+tupleV = SELECT tgt
+         FROM attrV:src-(c_current_addr_sk)->:tgt
+         ACCUM tgt.@cnt += src.@cnt 
+         ;
+
+//----my customers---
+
+Start2 = {date_dim.*};
+
+attrV = SELECT tgt
+        FROM Start2:src- (d_date_sk)->:tgt
+        WHERE src.d_year == 1998 AND src.d_moy == 12
+        ACCUM tgt.@d_filter = true, @@seq += src.d_month_seq
+        ;
+
+FOREACH s IN @@seq DO
+  @@month = s;
+END;
+
+attrV = SELECT tgt
+        FROM Start2:src- (d_date_sk)->:tgt
+        WHERE src.d_month_seq >= @@month+1 AND src.d_month_seq <= @@month+3
+        ACCUM tgt.@ss_filter = true
+        ;
+
+Start = {item.*};
+
+attrV = SELECT tgt
+        FROM Start:src- (i_item_sk)->:tgt
+        WHERE src.i_category == "Women" AND src.i_class == "maternity"
+        ;
+
+tuple_cs = SELECT tgt
+           FROM attrV:src- (cs_item_sk)->:tgt
+          ;
+tuple_cs = SELECT src 
+           FROM tuple_cs:src- (cs_sold_date_sk)->:tgt
+           WHERE tgt.@d_filter
+           ;
+
+attr_cs = SELECT tgt
+          FROM tuple_cs:src- (cs_bill_customer_sk)->:tgt
+          ;
+
+tuple_ws = SELECT tgt
+           FROM attrV:src- (ws_item_sk)->:tgt
+          ;
+
+tuple_ws = SELECT src
+           FROM tuple_ws:src- (ws_sold_date_sk)->:tgt
+           WHERE tgt.@d_filter
+           ;
+
+attr_ws = SELECT tgt
+          FROM tuple_ws:src- (ws_bill_customer_sk)->:tgt
+          ;
+
+attr_c = attr_cs UNION attr_ws;
+
+
+//-----my revenue-----
+attr_c = SELECT src
+         FROM attr_c:src- (c_customer_sk)->:tgt
+         WHERE tgt.@cnt != 0
+         ACCUM src.@cnt = tgt.@cnt
+        ;
+
+
+tuple_ss = SELECT tgt
+           FROM attr_c:src- (ss_customer_sk)->:tgt
+           ;
+
+tuple_ss = SELECT src
+           FROM tuple_ss:src- (ss_sold_date_sk)->:tgt
+           WHERE tgt.@ss_filter
+           ;
+
+//Collection
+
+attr_c = SELECT tgt
+         FROM tuple_ss:src- (ss_customer_sk)->:tgt
+         WHERE src.ss_ext_sales_price != -1000000.0
+         ACCUM tgt.@revenue += src.ss_ext_sales_price
+         POST-ACCUM @@result += (tgt.@cnt*tgt.@revenue/50 -> 1)
+         ;
+
+}
+
+INSTALL QUERY q54

@@ -1,0 +1,60 @@
+USE GRAPH tpcds
+
+DROP QUERY q65_0
+
+CREATE DISTRIBUTED QUERY q65_0() FOR GRAPH tpcds {
+typedef Tuple<string s, string i, double r> resTuple;
+SetAccum<resTuple> @@result;
+MapAccum<int, SumAccum<string>> @@smap, @@item;
+AvgAccum @ave;
+MapAccum<int, SumAccum<double>> @revenue;
+
+Start2 = {sstore.*};
+
+Start2 = SELECT src
+        FROM Start2:src
+        ACCUM @@smap += (src.s_store_sk -> src.s_store_name)
+        ;
+
+Start = {date_dim.*};
+attrV = SELECT tgt
+	  FROM Start:src- (d_date_sk)->:tgt
+	  WHERE src.d_month_seq >= 1176 AND src.d_month_seq <= 1187
+	  ;
+
+tupleV = SELECT tgt
+	 FROM attrV:src- (ss_sold_date_sk)->:tgt
+         ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (ss_store_sk)->:tgt
+         WHERE src.ss_sales_price != -1000000.0 //AND src.outdegree("ss_item_sk") > 0
+         ACCUM tgt.@revenue += (src.ss_item_sk -> src.ss_sales_price)
+         POST-ACCUM FOREACH (k,v) IN tgt.@revenue DO
+                      tgt.@ave += v
+                    END
+         ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (ss_store_sk)->:tgt
+         WHERE tgt.@revenue.get(src.ss_item_sk) <= 0.1*tgt.@ave
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (ss_item_sk)->:tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (i_item_sk)->:tgt
+        ACCUM @@item += (src.id ->  tgt.i_item_desc + "," + to_string(tgt.i_current_price) + "," + to_string(tgt.i_wholesale_cost) + "," + tgt.i_brand)
+        ;
+
+
+tupleV = SELECT src
+         FROM tupleV:src- (ss_store_sk)->:tgt
+         ACCUM @@result += resTuple(@@smap.get(src.ss_store_sk), @@item.get(src.ss_item_sk), tgt.@revenue.get(src.ss_item_sk))
+         ;
+
+}
+
+INSTALL QUERY q65_0

@@ -1,0 +1,38 @@
+USE GRAPH tpch
+
+DROP QUERY q16_0
+
+CREATE QUERY q16_0() FOR GRAPH tpch {
+GroupByAccum<string pbrand_ptype, int psize,SumAccum<int> cnt> @@result;
+SumAccum<string> @brand_type;
+SumAccum<int> @size;
+SetAccum<int> @@supp;
+
+Start2 = {supplier.*};
+
+Start2 = SELECT src
+         FROM Start2:src
+         WHERE src.S_COMMENT NOT LIKE "%Customer%Complaints%"
+         ACCUM @@supp += src.S_SUPPKEY
+         ;
+
+Start = {part.*};
+// Reduction
+
+    attrV = SELECT tgt
+            FROM Start:src - (P_PARTKEY:e) -> :tgt
+            WHERE src.P_BRAND != "Brand#45" AND src.P_TYPE NOT LIKE "MEDIUM POLISHED%" AND (src.P_SIZE==49 OR src.P_SIZE==14 OR src.P_SIZE==23 OR src.P_SIZE==45 OR src.P_SIZE==19 OR src.P_SIZE==3 OR src.P_SIZE==36 OR src.P_SIZE==9)
+            ACCUM tgt.@brand_type = src.P_BRAND + "," + src.P_TYPE, tgt.@size = src.P_SIZE 
+                  ;
+
+    tupleV = SELECT src
+             FROM attrV:src - (PS_PARTKEY:e) -> :tgt
+             WHERE @@supp.contains(tgt.PS_SUPPKEY)
+             ACCUM @@result += (src.@brand_type, src.@size -> 1)
+                  ;
+
+
+
+}
+
+INSTALL QUERY q16_0

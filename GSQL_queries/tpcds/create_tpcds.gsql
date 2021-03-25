@@ -1,0 +1,970 @@
+// TPC-DS graph schema
+
+CREATE VERTEX attribute_int (id int PRIMARY KEY)
+CREATE VERTEX attribute_str (id string PRIMARY KEY)
+CREATE VERTEX attribute_date (id datetime PRIMARY KEY)
+CREATE VERTEX attribute_dbl (id double PRIMARY KEY)
+
+// customer_address (ca_address_sk)
+CREATE VERTEX customer_address (
+ca_address_sk int PRIMARY KEY,
+ca_address_id string,
+ca_street_number string DEFAULT "NULL",
+ca_street_name string DEFAULT "NULL",
+ca_street_type string DEFAULT "NULL",
+ca_suite_number string DEFAULT "NULL",
+ca_city string DEFAULT "NULL", 
+ca_county string DEFAULT "NULL",
+ca_state string DEFAULT "NULL", 
+ca_zip string DEFAULT "NULL",
+ca_country string DEFAULT "NULL",
+ca_gmt_offset double DEFAULT -1000000.0,
+ca_location_type string DEFAULT "NULL")
+
+CREATE UNDIRECTED EDGE ca_address_sk (FROM customer_address, TO attribute_int)
+CREATE UNDIRECTED EDGE ca_address_id (FROM customer_address, TO attribute_str)
+CREATE UNDIRECTED EDGE ca_street_number (FROM customer_address, TO attribute_str)
+CREATE UNDIRECTED EDGE ca_street_name (FROM customer_address, TO attribute_str)
+CREATE UNDIRECTED EDGE ca_street_type (FROM customer_address, TO attribute_str)
+CREATE UNDIRECTED EDGE ca_suite_number (FROM customer_address, TO attribute_str)
+CREATE UNDIRECTED EDGE ca_city (FROM customer_address, TO attribute_str)
+CREATE UNDIRECTED EDGE ca_county (FROM customer_address, TO attribute_str)
+CREATE UNDIRECTED EDGE ca_state (FROM customer_address, TO attribute_str)
+CREATE UNDIRECTED EDGE ca_zip (FROM customer_address, TO attribute_str)
+CREATE UNDIRECTED EDGE ca_country (FROM customer_address, TO attribute_str)
+CREATE UNDIRECTED EDGE ca_gmt_offset (FROM customer_address, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ca_location_type (FROM customer_address, TO attribute_str)
+
+// customer_demographics (cd_demo_sk)
+CREATE VERTEX customer_demographics (
+cd_demo_sk int PRIMARY KEY,
+cd_gender string DEFAULT "NULL",
+cd_marital_status string DEFAULT "NULL",
+cd_education_status string DEFAULT "NULL",
+cd_purchase_estimate int DEFAULT -1,
+cd_credit_rating string DEFAULT "NULL",
+cd_dep_count int DEFAULT -1,
+cd_dep_employed_count int DEFAULT -1,
+cd_dep_college_count int DEFAULT -1)
+
+CREATE UNDIRECTED EDGE cd_demo_sk (FROM customer_demographics, TO attribute_int)
+CREATE UNDIRECTED EDGE cd_gender (FROM customer_demographics, TO attribute_str)
+CREATE UNDIRECTED EDGE cd_marital_status (FROM customer_demographics, TO attribute_str)
+CREATE UNDIRECTED EDGE cd_education_status (FROM customer_demographics, TO attribute_str)
+CREATE UNDIRECTED EDGE cd_purchase_estimate (FROM customer_demographics, TO attribute_int)
+CREATE UNDIRECTED EDGE cd_credit_rating (FROM customer_demographics, TO attribute_str)
+CREATE UNDIRECTED EDGE cd_dep_count (FROM customer_demographics, TO attribute_int)
+CREATE UNDIRECTED EDGE cd_dep_employed_count (FROM customer_demographics, TO attribute_int)
+CREATE UNDIRECTED EDGE cd_dep_college_count (FROM customer_demographics, TO attribute_int)
+
+//date_dim (d_date_sk)
+CREATE VERTEX date_dim (
+d_date_sk int PRIMARY KEY,
+d_date_id string,
+d_date datetime DEFAULT "1900-01-01",
+d_month_seq int DEFAULT -1,
+d_week_seq int DEFAULT -1,
+d_quarter_seq int DEFAULT -1,
+d_year int DEFAULT -1,
+d_dow int DEFAULT -1,
+d_moy int DEFAULT -1,
+d_dom int DEFAULT -1,
+d_qoy int DEFAULT -1,
+d_fy_year int DEFAULT -1,
+d_fy_quarter_seq int DEFAULT -1,
+d_fy_week_seq int DEFAULT -1,
+d_day_name string DEFAULT "NULL",
+d_quarter_name string DEFAULT "NULL",
+d_holiday string DEFAULT "NULL",
+d_weekend string DEFAULT "NULL",
+d_following_holiday string DEFAULT "NULL",
+d_first_dom int DEFAULT -1,
+d_last_dom int DEFAULT -1,
+d_same_day_ly int DEFAULT -1,
+d_same_day_lq int DEFAULT -1,
+d_current_day string DEFAULT "NULL",
+d_current_week string DEFAULT "NULL",
+d_current_month string DEFAULT "NULL",
+d_current_quarter string DEFAULT "NULL",
+d_current_year string DEFAULT "NULL"
+)
+
+CREATE UNDIRECTED EDGE d_date_sk (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_date_id (FROM date_dim, TO attribute_str)
+CREATE UNDIRECTED EDGE d_date (FROM date_dim, TO attribute_date)
+CREATE UNDIRECTED EDGE d_month_seq (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_week_seq (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_quarter_seq (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_year (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_dow (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_moy (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_dom (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_qoy (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_fy_year (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_fy_quarter_seq (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_fy_week_seq (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_day_name (FROM date_dim, TO attribute_str)
+CREATE UNDIRECTED EDGE d_quarter_name (FROM date_dim, TO attribute_str)
+CREATE UNDIRECTED EDGE d_holiday (FROM date_dim, TO attribute_str)
+CREATE UNDIRECTED EDGE d_weekend (FROM date_dim, TO attribute_str)
+CREATE UNDIRECTED EDGE d_following_holiday (FROM date_dim, TO attribute_str)
+CREATE UNDIRECTED EDGE d_first_dom (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_last_dom (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_same_day_ly (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_same_day_lq (FROM date_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE d_current_day (FROM date_dim, TO attribute_str)
+CREATE UNDIRECTED EDGE d_current_week (FROM date_dim, TO attribute_str)
+CREATE UNDIRECTED EDGE d_current_month (FROM date_dim, TO attribute_str)
+CREATE UNDIRECTED EDGE d_current_quarter (FROM date_dim, TO attribute_str)
+CREATE UNDIRECTED EDGE d_current_year (FROM date_dim, TO attribute_str)
+
+// warehouse (w_warehouse_sk)
+CREATE VERTEX warehouse (
+w_warehouse_sk int PRIMARY KEY,
+w_warehouse_id string,
+w_warehouse_name string DEFAULT "NULL",
+w_warehouse_sq_ft int DEFAULT -1,
+w_street_number string DEFAULT "NULL",
+w_street_name string DEFAULT "NULL",
+w_street_type string DEFAULT "NULL",
+w_suite_number string DEFAULT "NULL",
+w_city string DEFAULT "NULL",
+w_county string DEFAULT "NULL",
+w_state string DEFAULT "NULL",
+w_zip string DEFAULT "NULL",
+w_country string DEFAULT "NULL",
+w_gmt_offset double DEFAULT -1000000.0 
+)
+
+CREATE UNDIRECTED EDGE w_warehouse_sk (FROM warehouse, TO attribute_int)
+CREATE UNDIRECTED EDGE w_warehouse_id (FROM warehouse, TO attribute_str)
+CREATE UNDIRECTED EDGE w_warehouse_name (FROM warehouse, TO attribute_str)
+CREATE UNDIRECTED EDGE w_warehouse_sq_ft (FROM warehouse, TO attribute_int)
+CREATE UNDIRECTED EDGE w_street_number (FROM warehouse, TO attribute_str)
+CREATE UNDIRECTED EDGE w_street_name (FROM warehouse, TO attribute_str)
+CREATE UNDIRECTED EDGE w_street_type (FROM warehouse, TO attribute_str)
+CREATE UNDIRECTED EDGE w_suite_number (FROM warehouse, TO attribute_str)
+CREATE UNDIRECTED EDGE w_city (FROM warehouse, TO attribute_str)
+CREATE UNDIRECTED EDGE w_county (FROM warehouse, TO attribute_str)
+CREATE UNDIRECTED EDGE w_state (FROM warehouse, TO attribute_str)
+CREATE UNDIRECTED EDGE w_zip (FROM warehouse, TO attribute_str)
+CREATE UNDIRECTED EDGE w_country (FROM warehouse, TO attribute_str)
+CREATE UNDIRECTED EDGE w_gmt_offset (FROM warehouse, TO attribute_dbl)
+
+//ship_mode (sm_ship_mode_sk)
+CREATE VERTEX ship_mode (
+sm_ship_mode_sk int PRIMARY KEY,
+sm_ship_mode_id string,
+sm_type string DEFAULT "NULL",
+sm_code string DEFAULT "NULL",
+sm_carrier string DEFAULT "NULL",
+sm_contract string DEFAULT "NULL"
+)
+
+CREATE UNDIRECTED EDGE sm_ship_mode_sk (FROM ship_mode, TO attribute_int)
+CREATE UNDIRECTED EDGE sm_ship_mode_id (FROM ship_mode, TO attribute_str)
+CREATE UNDIRECTED EDGE sm_type (FROM ship_mode, TO attribute_str)
+CREATE UNDIRECTED EDGE sm_code (FROM ship_mode, TO attribute_str)
+CREATE UNDIRECTED EDGE sm_carrier (FROM ship_mode, TO attribute_str)
+CREATE UNDIRECTED EDGE sm_contract (FROM ship_mode, TO attribute_str)
+
+// time_dim (t_time_sk)
+CREATE VERTEX time_dim (
+t_time_sk int PRIMARY KEY,
+t_time_id string,
+t_time int DEFAULT -1,
+t_hour int DEFAULT -1,
+t_minute int DEFAULT -1,
+t_second int DEFAULT -1,
+t_am_pm string DEFAULT "NULL",
+t_shift string DEFAULT "NULL",
+t_sub_shift string DEFAULT "NULL",
+t_meal_time string DEFAULT "NULL")
+
+CREATE UNDIRECTED EDGE t_time_sk (FROM time_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE t_time_id (FROM time_dim, TO attribute_str)
+CREATE UNDIRECTED EDGE t_time (FROM time_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE t_hour (FROM time_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE t_minute (FROM time_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE t_second (FROM time_dim, TO attribute_int)
+CREATE UNDIRECTED EDGE t_am_pm (FROM time_dim, TO attribute_str)
+CREATE UNDIRECTED EDGE t_shift (FROM time_dim, TO attribute_str)
+CREATE UNDIRECTED EDGE t_sub_shift (FROM time_dim, TO attribute_str)
+CREATE UNDIRECTED EDGE t_meal_time (FROM time_dim, TO attribute_str)
+
+// reason (r_reason_sk)
+CREATE VERTEX reason (
+r_reason_sk int PRIMARY KEY,
+r_reason_id string,
+r_reason_desc string DEFAULT "NULL"
+)
+
+CREATE UNDIRECTED EDGE r_reason_sk (FROM reason, TO attribute_int)
+CREATE UNDIRECTED EDGE r_reason_id (FROM reason, TO attribute_str)
+CREATE UNDIRECTED EDGE r_reason_desc (FROM reason, TO attribute_str)
+
+// income_band (ib_income_band_sk)
+CREATE VERTEX income_band (
+ib_income_band_sk int PRIMARY KEY,
+ib_lower_bound int DEFAULT -1,
+ib_upper_bound int DEFAULT -1)
+
+CREATE UNDIRECTED EDGE ib_income_band_sk (FROM income_band, TO attribute_int)
+CREATE UNDIRECTED EDGE ib_lower_bound (FROM income_band, TO attribute_int)
+CREATE UNDIRECTED EDGE ib_upper_bound (FROM income_band, TO attribute_int)
+
+
+// item (i_item_sk)
+CREATE VERTEX item (
+i_item_sk int PRIMARY KEY,
+i_item_id string,
+i_rec_start_date datetime DEFAULT "1900-01-01",
+i_rec_end_date datetime DEFAULT "1900-01-01",
+i_item_desc string DEFAULT "NULL",
+i_current_price double DEFAULT -1000000.0,
+i_wholesale_cost double DEFAULT -1000000.0,
+i_brand_id int DEFAULT -1,
+i_brand string DEFAULT "NULL",
+i_class_id int DEFAULT -1,
+i_class string DEFAULT "NULL",
+i_category_id int DEFAULT -1,
+i_category string DEFAULT "NULL",
+i_manufact_id int DEFAULT -1,
+i_manufact string DEFAULT "NULL",
+i_size string DEFAULT "NULL",
+i_formulation string DEFAULT "NULL",
+i_color string DEFAULT "NULL",
+i_units string DEFAULT "NULL",
+i_container string DEFAULT "NULL",
+i_manager_id int DEFAULT -1,
+i_product_name string DEFAULT "NULL")
+
+CREATE UNDIRECTED EDGE i_item_sk (FROM item, TO attribute_int)
+CREATE UNDIRECTED EDGE i_item_id (FROM item, TO attribute_str)
+CREATE UNDIRECTED EDGE i_rec_start_date (FROM item, TO attribute_date)
+CREATE UNDIRECTED EDGE i_rec_end_date (FROM item, TO attribute_date)
+CREATE UNDIRECTED EDGE i_item_desc (FROM item, TO attribute_str)
+CREATE UNDIRECTED EDGE i_current_price (FROM item, TO attribute_dbl)
+CREATE UNDIRECTED EDGE i_wholesale_cost (FROM item, TO attribute_dbl)
+CREATE UNDIRECTED EDGE i_brand_id (FROM item, TO attribute_int)
+CREATE UNDIRECTED EDGE i_brand (FROM item, TO attribute_str)
+CREATE UNDIRECTED EDGE i_class_id (FROM item, TO attribute_int)
+CREATE UNDIRECTED EDGE i_class (FROM item, TO attribute_str)
+CREATE UNDIRECTED EDGE i_category_id (FROM item, TO attribute_int)
+CREATE UNDIRECTED EDGE i_category (FROM item, TO attribute_str)
+CREATE UNDIRECTED EDGE i_manufact_id (FROM item, TO attribute_int)
+CREATE UNDIRECTED EDGE i_manufact (FROM item, TO attribute_str)
+CREATE UNDIRECTED EDGE i_size (FROM item, TO attribute_str)
+CREATE UNDIRECTED EDGE i_formulation (FROM item, TO attribute_str)
+CREATE UNDIRECTED EDGE i_color (FROM item, TO attribute_str)
+CREATE UNDIRECTED EDGE i_units (FROM item, TO attribute_str)
+CREATE UNDIRECTED EDGE i_container (FROM item, TO attribute_str)
+CREATE UNDIRECTED EDGE i_manager_id (FROM item, TO attribute_int)
+CREATE UNDIRECTED EDGE i_product_name (FROM item, TO attribute_str)
+
+// store (s_store_sk)
+CREATE VERTEX sstore (
+s_store_sk int PRIMARY KEY,
+s_store_id string,
+s_rec_start_date datetime DEFAULT "1900-01-01",
+s_rec_end_date datetime DEFAULT "1900-01-01",
+s_closed_date_sk int DEFAULT -1,
+s_store_name string DEFAULT "NULL",
+s_number_employees int DEFAULT -1,
+s_floor_space int DEFAULT -1,
+s_hours string DEFAULT "NULL",
+s_manager string DEFAULT "NULL",
+s_market_id int DEFAULT -1,
+s_geography_class string DEFAULT "NULL",
+s_market_desc string DEFAULT "NULL",
+s_market_manager string DEFAULT "NULL",
+s_division_id int DEFAULT -1,
+s_division_name string DEFAULT "NULL",
+s_company_id int DEFAULT -1,
+s_company_name string DEFAULT "NULL",
+s_street_number string DEFAULT "NULL",
+s_street_name string DEFAULT "NULL",
+s_street_type string DEFAULT "NULL",
+s_suite_number string DEFAULT "NULL",
+s_city string DEFAULT "NULL",
+s_county string DEFAULT "NULL",
+s_state string DEFAULT "NULL",
+s_zip string DEFAULT "NULL",
+s_country string DEFAULT "NULL",
+s_gmt_offset double DEFAULT -1000000.0,
+s_tax_precentage double DEFAULT -1000000.0)
+
+CREATE UNDIRECTED EDGE s_store_sk (FROM sstore, TO attribute_int)
+CREATE UNDIRECTED EDGE s_store_id (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_rec_start_date (FROM sstore, TO attribute_date)
+CREATE UNDIRECTED EDGE s_rec_end_date (FROM sstore, TO attribute_date)
+CREATE UNDIRECTED EDGE s_closed_date_sk (FROM sstore, TO attribute_int)
+CREATE UNDIRECTED EDGE s_store_name (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_number_employees (FROM sstore, TO attribute_int)
+CREATE UNDIRECTED EDGE s_floor_space (FROM sstore, TO attribute_int)
+CREATE UNDIRECTED EDGE s_hours (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_manager (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_market_id (FROM sstore, TO attribute_int)
+CREATE UNDIRECTED EDGE s_geography_class (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_market_desc (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_market_manager (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_division_id (FROM sstore, TO attribute_int)
+CREATE UNDIRECTED EDGE s_division_name (FROM sstore, TO attribute_int)
+CREATE UNDIRECTED EDGE s_company_id (FROM sstore, TO attribute_int)
+CREATE UNDIRECTED EDGE s_company_name (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_street_number (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_street_name (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_street_type (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_suite_number (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_city (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_county (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_state (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_zip (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_country (FROM sstore, TO attribute_str)
+CREATE UNDIRECTED EDGE s_gmt_offset (FROM sstore, TO attribute_dbl)
+CREATE UNDIRECTED EDGE s_tax_precentage (FROM sstore, TO attribute_dbl)
+
+// call_center (cc_call_center_sk)
+CREATE VERTEX call_center (
+cc_call_center_sk int PRIMARY KEY,
+cc_call_center_id string,
+cc_rec_start_date datetime DEFAULT "1900-01-01",
+cc_rec_end_date datetime DEFAULT "1900-01-01",
+cc_closed_date_sk int DEFAULT -1,
+cc_open_date_sk int DEFAULT -1,
+cc_name string DEFAULT "NULL",
+cc_class string DEFAULT "NULL",
+cc_employees int DEFAULT -1,
+cc_sq_ft int DEFAULT -1,
+cc_hours string DEFAULT "NULL",
+cc_manager string DEFAULT "NULL",
+cc_mkt_id int DEFAULT -1,
+cc_mkt_class string DEFAULT "NULL",
+cc_mkt_desc string DEFAULT "NULL",
+cc_market_manager string DEFAULT "NULL",
+cc_division int DEFAULT -1,
+cc_division_name string DEFAULT "NULL",
+cc_company int DEFAULT -1,
+cc_company_name string DEFAULT "NULL",
+cc_street_number string DEFAULT "NULL",
+cc_street_name string DEFAULT "NULL",
+cc_street_type string DEFAULT "NULL",
+cc_suite_number string DEFAULT "NULL",
+cc_city string DEFAULT "NULL",
+cc_county string DEFAULT "NULL",
+cc_state string DEFAULT "NULL",
+cc_zip string DEFAULT "NULL",
+cc_country string DEFAULT "NULL",
+cc_gmt_offset double DEFAULT -1000000.0,
+cc_tax_percentage double DEFAULT -1000000.0)
+
+CREATE UNDIRECTED EDGE cc_call_center_sk (FROM call_center, TO attribute_int)
+CREATE UNDIRECTED EDGE cc_call_center_id (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_rec_start_date (FROM call_center, TO attribute_date)
+CREATE UNDIRECTED EDGE cc_rec_end_date (FROM call_center, TO attribute_date)
+CREATE UNDIRECTED EDGE cc_closed_date_sk (FROM call_center, TO attribute_int)
+CREATE UNDIRECTED EDGE cc_open_date_sk (FROM call_center, TO attribute_int)
+CREATE UNDIRECTED EDGE cc_name (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_class (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_employees (FROM call_center, TO attribute_int)
+CREATE UNDIRECTED EDGE cc_sq_ft (FROM call_center, TO attribute_int)
+CREATE UNDIRECTED EDGE cc_hours (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_manager (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_mkt_id (FROM call_center, TO attribute_int)
+CREATE UNDIRECTED EDGE cc_mkt_class (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_mkt_desc (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_market_manager (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_division (FROM call_center, TO attribute_int)
+CREATE UNDIRECTED EDGE cc_division_name (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_company (FROM call_center, TO attribute_int)
+CREATE UNDIRECTED EDGE cc_company_name (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_street_number (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_street_name (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_street_type (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_suite_number (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_city (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_county (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_state (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_zip (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_country (FROM call_center, TO attribute_str)
+CREATE UNDIRECTED EDGE cc_gmt_offset (FROM call_center, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cc_tax_percentage (FROM call_center, TO attribute_dbl)
+
+//customer (c_customer_sk)
+CREATE VERTEX customer (
+c_customer_sk int PRIMARY KEY,
+c_customer_id string,
+c_current_cdemo_sk int DEFAULT -1,
+c_current_hdemo_sk int DEFAULT -1,
+c_current_addr_sk int DEFAULT -1,
+c_first_shipto_date_sk int DEFAULT -1,
+c_first_sales_date_sk int DEFAULT -1,
+c_salutation string DEFAULT "NULL",
+c_first_name string DEFAULT "NULL",
+c_last_name string DEFAULT "NULL",
+c_preferred_cust_flag string DEFAULT "NULL",
+c_birth_day int DEFAULT -1,
+c_birth_month int DEFAULT -1,
+c_birth_year int DEFAULT -1,
+c_birth_country string DEFAULT "NULL",
+c_login string DEFAULT "NULL",
+c_email_address string DEFAULT "NULL",
+c_last_review_date string DEFAULT "NULL")
+
+CREATE UNDIRECTED EDGE c_customer_sk (FROM customer, TO attribute_int)
+CREATE UNDIRECTED EDGE c_customer_id (FROM customer, TO attribute_str)
+CREATE UNDIRECTED EDGE c_current_cdemo_sk (FROM customer, TO attribute_int)
+CREATE UNDIRECTED EDGE c_current_hdemo_sk (FROM customer, TO attribute_int)
+CREATE UNDIRECTED EDGE c_current_addr_sk (FROM customer, TO attribute_int)
+CREATE UNDIRECTED EDGE c_first_shipto_date_sk (FROM customer, TO attribute_int)
+CREATE UNDIRECTED EDGE c_first_sales_date_sk (FROM customer, TO attribute_int)
+CREATE UNDIRECTED EDGE c_salutation (FROM customer, TO attribute_str)
+CREATE UNDIRECTED EDGE c_first_name (FROM customer, TO attribute_str)
+CREATE UNDIRECTED EDGE c_last_name (FROM customer, TO attribute_str)
+CREATE UNDIRECTED EDGE c_preferred_cust_flag (FROM customer, TO attribute_str)
+CREATE UNDIRECTED EDGE c_birth_day (FROM customer, TO attribute_int)
+CREATE UNDIRECTED EDGE c_birth_month (FROM customer, TO attribute_int)
+CREATE UNDIRECTED EDGE c_birth_year (FROM customer, TO attribute_int)
+CREATE UNDIRECTED EDGE c_birth_country (FROM customer, TO attribute_str)
+CREATE UNDIRECTED EDGE c_login (FROM customer, TO attribute_str)
+CREATE UNDIRECTED EDGE c_email_address (FROM customer, TO attribute_str)
+CREATE UNDIRECTED EDGE c_last_review_date (FROM customer, TO attribute_str)
+
+//web_site (web_site_sk)
+CREATE VERTEX web_site (
+web_site_sk int PRIMARY KEY,
+web_site_id string,
+web_rec_start_date datetime DEFAULT "1900-01-01",
+web_rec_end_date datetime DEFAULT "1900-01-01",
+web_name string DEFAULT "NULL",
+web_open_date_sk int DEFAULT -1,
+web_close_date_sk int DEFAULT -1,
+web_class string DEFAULT "NULL",
+web_manager string DEFAULT "NULL",
+web_mkt_id int DEFAULT -1,
+web_mkt_class string DEFAULT "NULL",
+web_mkt_desc string DEFAULT "NULL",
+web_market_manager string DEFAULT "NULL",
+web_company_id int DEFAULT -1,
+web_company_name string DEFAULT "NULL",
+web_street_number string DEFAULT "NULL",
+web_street_name string DEFAULT "NULL",
+web_street_type string DEFAULT "NULL",
+web_suite_number string DEFAULT "NULL",
+web_city string DEFAULT "NULL",
+web_county string DEFAULT "NULL",
+web_state string DEFAULT "NULL",
+web_zip string DEFAULT "NULL",
+web_country string DEFAULT "NULL",
+web_gmt_offset double DEFAULT -1000000.0,
+web_tax_percentage double DEFAULT -1000000.0)
+
+CREATE UNDIRECTED EDGE web_site_sk (FROM web_site, TO attribute_int)
+CREATE UNDIRECTED EDGE web_site_id (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_rec_start_date (FROM web_site, TO attribute_date)
+CREATE UNDIRECTED EDGE web_rec_end_date (FROM web_site, TO attribute_date)
+CREATE UNDIRECTED EDGE web_name (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_open_date_sk (FROM web_site, TO attribute_int)
+CREATE UNDIRECTED EDGE web_close_date_sk (FROM web_site, TO attribute_int)
+CREATE UNDIRECTED EDGE web_class (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_manager (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_mkt_id (FROM web_site, TO attribute_int)
+CREATE UNDIRECTED EDGE web_mkt_class (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_mkt_desc (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_market_manager (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_company_id (FROM web_site, TO attribute_int)
+CREATE UNDIRECTED EDGE web_company_name (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_street_number (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_street_name (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_street_type (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_suite_number (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_city (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_county (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_state (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_zip (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_country (FROM web_site, TO attribute_str)
+CREATE UNDIRECTED EDGE web_gmt_offset (FROM web_site, TO attribute_dbl)
+CREATE UNDIRECTED EDGE web_tax_percentage (FROM web_site, TO attribute_dbl)
+
+// household_demographics (hd_demo_sk)
+CREATE VERTEX household_demographics (
+hd_demo_sk int PRIMARY KEY,
+hd_income_band_sk int DEFAULT -1,
+hd_buy_potential string DEFAULT "NULL",
+hd_dep_count int DEFAULT -1,
+hd_vehicle_count int DEFAULT -1)
+
+CREATE UNDIRECTED EDGE hd_demo_sk (FROM household_demographics, TO attribute_int)
+CREATE UNDIRECTED EDGE hd_income_band_sk (FROM household_demographics, TO attribute_int)
+CREATE UNDIRECTED EDGE hd_buy_potential (FROM household_demographics, TO attribute_str)
+CREATE UNDIRECTED EDGE hd_dep_count (FROM household_demographics, TO attribute_int)
+CREATE UNDIRECTED EDGE hd_vehicle_count (FROM household_demographics, TO attribute_int)
+
+// web_page (wp_web_page_sk)
+CREATE VERTEX web_page (
+wp_web_page_sk int PRIMARY KEY,
+wp_web_page_id string,
+wp_rec_start_date datetime DEFAULT "1900-01-01",
+wp_rec_end_date datetime DEFAULT "1900-01-01",
+wp_creation_date_sk int DEFAULT -1,
+wp_access_date_sk int DEFAULT -1,
+wp_autogen_flag string DEFAULT "NULL",
+wp_customer_sk int DEFAULT -1,
+wp_url string DEFAULT "NULL",
+wp_type string DEFAULT "NULL",
+wp_char_count int DEFAULT -1,
+wp_link_count int DEFAULT -1,
+wp_image_count int DEFAULT -1,
+wp_max_ad_count int DEFAULT -1)
+
+CREATE UNDIRECTED EDGE wp_web_page_sk (FROM web_page, TO attribute_int)
+CREATE UNDIRECTED EDGE wp_web_page_id (FROM web_page, TO attribute_str)
+CREATE UNDIRECTED EDGE wp_rec_start_date (FROM web_page, TO attribute_date)
+CREATE UNDIRECTED EDGE wp_rec_end_date (FROM web_page, TO attribute_date)
+CREATE UNDIRECTED EDGE wp_creation_date_sk (FROM web_page, TO attribute_int)
+CREATE UNDIRECTED EDGE wp_access_date_sk (FROM web_page, TO attribute_int)
+CREATE UNDIRECTED EDGE wp_autogen_flag (FROM web_page, TO attribute_str)
+CREATE UNDIRECTED EDGE wp_customer_sk (FROM web_page, TO attribute_int)
+CREATE UNDIRECTED EDGE wp_url (FROM web_page, TO attribute_str)
+CREATE UNDIRECTED EDGE wp_type (FROM web_page, TO attribute_str)
+CREATE UNDIRECTED EDGE wp_char_count (FROM web_page, TO attribute_int)
+CREATE UNDIRECTED EDGE wp_link_count (FROM web_page, TO attribute_int)
+CREATE UNDIRECTED EDGE wp_image_count (FROM web_page, TO attribute_int)
+CREATE UNDIRECTED EDGE wp_max_ad_count (FROM web_page, TO attribute_int)
+
+// promotion (p_promo_sk)
+CREATE VERTEX promotion (
+p_promo_sk int PRIMARY KEY,
+p_promo_id string,
+p_start_date_sk int DEFAULT -1,
+p_end_date_sk int DEFAULT -1,
+p_item_sk int DEFAULT -1,
+p_cost double DEFAULT -1000000.0,
+p_response_target int DEFAULT -1,
+p_promo_name string DEFAULT "NULL",
+p_channel_dmail string DEFAULT "NULL",
+p_channel_email string DEFAULT "NULL",
+p_channel_catalog string DEFAULT "NULL",
+p_channel_tv string DEFAULT "NULL",
+p_channel_radio string DEFAULT "NULL",
+p_channel_press string DEFAULT "NULL",
+p_channel_event string DEFAULT "NULL",
+p_channel_demo string DEFAULT "NULL",
+p_channel_details string DEFAULT "NULL",
+p_purpose string DEFAULT "NULL",
+p_discount_active string DEFAULT "NULL")
+
+CREATE UNDIRECTED EDGE p_promo_sk (FROM promotion, TO attribute_int)
+CREATE UNDIRECTED EDGE p_promo_id (FROM promotion, TO attribute_str)
+CREATE UNDIRECTED EDGE p_start_date_sk (FROM promotion, TO attribute_int)
+CREATE UNDIRECTED EDGE p_end_date_sk (FROM promotion, TO attribute_int)
+CREATE UNDIRECTED EDGE p_item_sk (FROM promotion, TO attribute_int)
+CREATE UNDIRECTED EDGE p_cost (FROM promotion, TO attribute_dbl)
+CREATE UNDIRECTED EDGE p_response_target (FROM promotion, TO attribute_int)
+CREATE UNDIRECTED EDGE p_promo_name (FROM promotion, TO attribute_str)
+CREATE UNDIRECTED EDGE p_channel_dmail (FROM promotion, TO attribute_str)
+CREATE UNDIRECTED EDGE p_channel_email (FROM promotion, TO attribute_str)
+CREATE UNDIRECTED EDGE p_channel_catalog (FROM promotion, TO attribute_str)
+CREATE UNDIRECTED EDGE p_channel_tv (FROM promotion, TO attribute_str)
+CREATE UNDIRECTED EDGE p_channel_radio (FROM promotion, TO attribute_str)
+CREATE UNDIRECTED EDGE p_channel_press (FROM promotion, TO attribute_str)
+CREATE UNDIRECTED EDGE p_channel_event (FROM promotion, TO attribute_str)
+CREATE UNDIRECTED EDGE p_channel_demo (FROM promotion, TO attribute_str)
+CREATE UNDIRECTED EDGE p_channel_details (FROM promotion, TO attribute_str)
+CREATE UNDIRECTED EDGE p_purpose (FROM promotion, TO attribute_str)
+CREATE UNDIRECTED EDGE p_discount_active (FROM promotion, TO attribute_str)
+
+// catalog_page (cp_catalog_page_sk)
+CREATE VERTEX catalog_page (
+cp_catalog_page_sk int PRIMARY KEY,
+cp_catalog_page_id string,
+cp_start_date_sk int DEFAULT -1,
+cp_end_date_sk int DEFAULT -1,
+cp_department string DEFAULT "NULL",
+cp_catalog_number int DEFAULT -1,
+cp_catalog_page_number int DEFAULT -1,
+cp_description string DEFAULT "NULL",
+cp_type string DEFAULT "NULL")
+
+CREATE UNDIRECTED EDGE cp_catalog_page_sk (FROM catalog_page, TO attribute_int)
+CREATE UNDIRECTED EDGE cp_catalog_page_id (FROM catalog_page, TO attribute_str)
+CREATE UNDIRECTED EDGE cp_start_date_sk (FROM catalog_page, TO attribute_int)
+CREATE UNDIRECTED EDGE cp_end_date_sk (FROM catalog_page, TO attribute_int)
+CREATE UNDIRECTED EDGE cp_department (FROM catalog_page, TO attribute_str)
+CREATE UNDIRECTED EDGE cp_catalog_number (FROM catalog_page, TO attribute_int)
+CREATE UNDIRECTED EDGE cp_catalog_page_number (FROM catalog_page, TO attribute_int)
+CREATE UNDIRECTED EDGE cp_description (FROM catalog_page, TO attribute_str)
+CREATE UNDIRECTED EDGE cp_type (FROM catalog_page, TO attribute_str)
+
+// inventory (inv_date_sk, inv_item_sk, inv_warehouse_sk)
+CREATE VERTEX inventory (
+inv_date_sk int,
+inv_item_sk int,
+inv_warehouse_sk int,
+inv_quantity_on_hand int DEFAULT -1,
+PRIMARY KEY (inv_date_sk, inv_item_sk, inv_warehouse_sk))
+
+CREATE UNDIRECTED EDGE inv_date_sk (FROM inventory, TO attribute_int)
+CREATE UNDIRECTED EDGE inv_item_sk (FROM inventory, TO attribute_int)
+CREATE UNDIRECTED EDGE inv_warehouse_sk (FROM inventory, TO attribute_int)
+CREATE UNDIRECTED EDGE inv_quantity_on_hand (FROM inventory, TO attribute_int)
+
+// web_sales (ws_item_sk, ws_order_number)
+CREATE VERTEX web_sales (
+ws_sold_date_sk int DEFAULT -1,
+ws_sold_time_sk int DEFAULT -1,
+ws_ship_date_sk int DEFAULT -1,
+ws_item_sk int,
+ws_bill_customer_sk int DEFAULT -1,
+ws_bill_cdemo_sk int DEFAULT -1,
+ws_bill_hdemo_sk int DEFAULT -1,
+ws_bill_addr_sk int DEFAULT -1,
+ws_ship_customer_sk int DEFAULT -1,
+ws_ship_cdemo_sk int DEFAULT -1,
+ws_ship_hdemo_sk int DEFAULT -1,
+ws_ship_addr_sk int DEFAULT -1,
+ws_web_page_sk int DEFAULT -1,
+ws_web_site_sk int DEFAULT -1,
+ws_ship_mode_sk int DEFAULT -1,
+ws_warehouse_sk int DEFAULT -1,
+ws_promo_sk int DEFAULT -1,
+ws_order_number int,
+ws_quantity int DEFAULT -1,
+ws_wholesale_cost double DEFAULT -1000000.0,
+ws_list_price double DEFAULT -1000000.0,
+ws_sales_price double DEFAULT -1000000.0,
+ws_ext_discount_amt double DEFAULT -1000000.0,
+ws_ext_sales_price double DEFAULT -1000000.0,
+ws_ext_wholesale_cost double DEFAULT -1000000.0,
+ws_ext_list_price double DEFAULT -1000000.0,
+ws_ext_tax double DEFAULT -1000000.0,
+ws_coupon_amt double DEFAULT -1000000.0,
+ws_ext_ship_cost double DEFAULT -1000000.0,
+ws_net_paid double DEFAULT -1000000.0,
+ws_net_paid_inc_tax double DEFAULT -1000000.0,
+ws_net_paid_inc_ship double DEFAULT -1000000.0,
+ws_net_paid_inc_ship_tax double DEFAULT -1000000.0,
+ws_net_profit double DEFAULT -1000000.0,
+PRIMARY KEY (ws_item_sk, ws_order_number))
+
+CREATE UNDIRECTED EDGE ws_sold_date_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_sold_time_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_ship_date_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_item_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_bill_customer_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_bill_cdemo_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_bill_hdemo_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_bill_addr_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_ship_customer_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_ship_cdemo_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_ship_hdemo_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_ship_addr_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_web_page_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_web_site_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_ship_mode_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_warehouse_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_promo_sk (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_order_number (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_quantity (FROM web_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ws_wholesale_cost (FROM web_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ws_list_price (FROM web_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ws_sales_price (FROM web_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ws_ext_discount_amt (FROM web_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ws_ext_sales_price (FROM web_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ws_ext_wholesale_cost (FROM web_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ws_ext_list_price (FROM web_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ws_ext_tax (FROM web_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ws_coupon_amt (FROM web_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ws_ext_ship_cost (FROM web_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ws_net_paid (FROM web_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ws_net_paid_inc_tax (FROM web_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ws_net_paid_inc_ship (FROM web_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ws_net_paid_inc_ship_tax (FROM web_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ws_net_profit (FROM web_sales, TO attribute_dbl)
+
+
+// web_returns (wr_item_sk, wr_order_number)
+CREATE VERTEX web_returns (
+wr_returned_date_sk int DEFAULT -1,
+wr_returned_time_sk int DEFAULT -1,
+wr_item_sk int,
+wr_refunded_customer_sk int DEFAULT -1,
+wr_refunded_cdemo_sk int DEFAULT -1,
+wr_refunded_hdemo_sk int DEFAULT -1,
+wr_refunded_addr_sk int DEFAULT -1,
+wr_returning_customer_sk int DEFAULT -1,
+wr_returning_cdemo_sk int DEFAULT -1,
+wr_returning_hdemo_sk int DEFAULT -1,
+wr_returning_addr_sk int DEFAULT -1,
+wr_web_page_sk int DEFAULT -1,
+wr_reason_sk int DEFAULT -1,
+wr_order_number int,
+wr_return_quantity int DEFAULT -1,
+wr_return_amt double DEFAULT -1000000.0,
+wr_return_tax double DEFAULT -1000000.0,
+wr_return_amt_inc_tax double DEFAULT -1000000.0,
+wr_fee double DEFAULT -1000000.0,
+wr_return_ship_cost double DEFAULT -1000000.0,
+wr_refunded_cash double DEFAULT -1000000.0,
+wr_reversed_charge double DEFAULT -1000000.0,
+wr_account_credit double DEFAULT -1000000.0,
+wr_net_loss double DEFAULT -1000000.0,
+PRIMARY KEY (wr_item_sk, wr_order_number))
+
+CREATE UNDIRECTED EDGE wr_returned_date_sk (FROM web_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE wr_returned_time_sk (FROM web_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE wr_item_sk (FROM web_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE wr_refunded_customer_sk (FROM web_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE wr_refunded_cdemo_sk (FROM web_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE wr_refunded_hdemo_sk (FROM web_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE wr_refunded_addr_sk (FROM web_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE wr_returning_customer_sk (FROM web_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE wr_returning_cdemo_sk (FROM web_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE wr_returning_hdemo_sk (FROM web_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE wr_returning_addr_sk (FROM web_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE wr_web_page_sk (FROM web_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE wr_reason_sk (FROM web_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE wr_order_number (FROM web_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE wr_return_quantity (FROM web_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE wr_return_amt (FROM web_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE wr_return_tax (FROM web_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE wr_return_amt_inc_tax (FROM web_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE wr_fee (FROM web_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE wr_return_ship_cost (FROM web_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE wr_refunded_cash (FROM web_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE wr_reversed_charge (FROM web_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE wr_account_credit (FROM web_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE wr_net_loss (FROM web_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ws_wr_order_item (FROM web_returns, TO web_sales)
+
+// catalog_sales (cs_item_sk, cs_order_number)
+CREATE VERTEX catalog_sales (
+cs_sold_date_sk int DEFAULT -1,
+cs_sold_time_sk int DEFAULT -1,
+cs_ship_date_sk int DEFAULT -1,
+cs_bill_customer_sk int DEFAULT -1,
+cs_bill_cdemo_sk int DEFAULT -1,
+cs_bill_hdemo_sk int DEFAULT -1,
+cs_bill_addr_sk int DEFAULT -1,
+cs_ship_customer_sk int DEFAULT -1,
+cs_ship_cdemo_sk int DEFAULT -1,
+cs_ship_hdemo_sk int DEFAULT -1,
+cs_ship_addr_sk int DEFAULT -1,
+cs_call_center_sk int DEFAULT -1,
+cs_catalog_page_sk int DEFAULT -1,
+cs_ship_mode_sk int DEFAULT -1,
+cs_warehouse_sk int DEFAULT -1,
+cs_item_sk int,
+cs_promo_sk int DEFAULT -1,
+cs_order_number int,
+cs_quantity int DEFAULT -1,
+cs_wholesale_cost double DEFAULT -1000000.0,
+cs_list_price double DEFAULT -1000000.0,
+cs_sales_price double DEFAULT -1000000.0,
+cs_ext_discount_amt double DEFAULT -1000000.0,
+cs_ext_sales_price double DEFAULT -1000000.0,
+cs_ext_wholesale_cost double DEFAULT -1000000.0,
+cs_ext_list_price double DEFAULT -1000000.0,
+cs_ext_tax double DEFAULT -1000000.0,
+cs_coupon_amt double DEFAULT -1000000.0,
+cs_ext_ship_cost double DEFAULT -1000000.0,
+cs_net_paid double DEFAULT -1000000.0,
+cs_net_paid_inc_tax double DEFAULT -1000000.0,
+cs_net_paid_inc_ship double DEFAULT -1000000.0,
+cs_net_paid_inc_ship_tax double DEFAULT -1000000.0,
+cs_net_profit double DEFAULT -1000000.0,
+PRIMARY KEY (cs_item_sk, cs_order_number))
+
+CREATE UNDIRECTED EDGE cs_sold_date_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_sold_time_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_ship_date_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_bill_customer_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_bill_cdemo_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_bill_hdemo_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_bill_addr_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_ship_customer_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_ship_cdemo_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_ship_hdemo_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_ship_addr_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_call_center_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_catalog_page_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_ship_mode_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_warehouse_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_item_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_promo_sk (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_order_number (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_quantity (FROM catalog_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE cs_wholesale_cost (FROM catalog_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cs_list_price (FROM catalog_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cs_sales_price (FROM catalog_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cs_ext_discount_amt (FROM catalog_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cs_ext_sales_price (FROM catalog_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cs_ext_wholesale_cost (FROM catalog_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cs_ext_list_price (FROM catalog_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cs_ext_tax (FROM catalog_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cs_coupon_amt (FROM catalog_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cs_ext_ship_cost (FROM catalog_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cs_net_paid (FROM catalog_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cs_net_paid_inc_tax (FROM catalog_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cs_net_paid_inc_ship (FROM catalog_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cs_net_paid_inc_ship_tax (FROM catalog_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cs_net_profit (FROM catalog_sales, TO attribute_dbl)
+
+// catalog_returns (cr_item_sk, cr_order_number)
+CREATE VERTEX catalog_returns (
+cr_returned_date_sk int DEFAULT -1,
+cr_returned_time_sk int DEFAULT -1,
+cr_item_sk int,
+cr_refunded_customer_sk int DEFAULT -1,
+cr_refunded_cdemo_sk int DEFAULT -1,
+cr_refunded_hdemo_sk int DEFAULT -1,
+cr_refunded_addr_sk int DEFAULT -1,
+cr_returning_customer_sk int DEFAULT -1,
+cr_returning_cdemo_sk int DEFAULT -1,
+cr_returning_hdemo_sk int DEFAULT -1,
+cr_returning_addr_sk int DEFAULT -1,
+cr_call_center_sk int DEFAULT -1,
+cr_catalog_page_sk int DEFAULT -1,
+cr_ship_mode_sk int DEFAULT -1,
+cr_warehouse_sk int DEFAULT -1,
+cr_reason_sk int DEFAULT -1,
+cr_order_number int,
+cr_return_quantity int DEFAULT -1,
+cr_return_amount double DEFAULT -1000000.0,
+cr_return_tax double DEFAULT -1000000.0,
+cr_return_amt_inc_tax double DEFAULT -1000000.0,
+cr_fee double DEFAULT -1000000.0,
+cr_return_ship_cost double DEFAULT -1000000.0,
+cr_refunded_cash double DEFAULT -1000000.0,
+cr_reversed_charge double DEFAULT -1000000.0,
+cr_store_credit double DEFAULT -1000000.0,
+cr_net_loss double DEFAULT -1000000.0,
+PRIMARY KEY (cr_item_sk, cr_order_number))
+
+CREATE UNDIRECTED EDGE cr_returned_date_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_returned_time_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_item_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_refunded_customer_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_refunded_cdemo_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_refunded_hdemo_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_refunded_addr_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_returning_customer_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_returning_cdemo_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_returning_hdemo_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_returning_addr_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_call_center_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_catalog_page_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_ship_mode_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_warehouse_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_reason_sk (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_order_number (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_return_quantity (FROM catalog_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE cr_return_amount (FROM catalog_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cr_return_tax (FROM catalog_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cr_return_amt_inc_tax (FROM catalog_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cr_fee (FROM catalog_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cr_return_ship_cost (FROM catalog_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cr_refunded_cash (FROM catalog_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cr_reversed_charge (FROM catalog_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cr_store_credit (FROM catalog_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cr_net_loss (FROM catalog_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE cs_cr_order_item (FROM catalog_returns, TO catalog_sales)
+
+// store_sales (ss_item_sk, ss_ticket_number)
+CREATE VERTEX store_sales (
+ss_sold_date_sk int DEFAULT -1,
+ss_sold_time_sk int DEFAULT -1,
+ss_item_sk int,
+ss_customer_sk int DEFAULT -1,
+ss_cdemo_sk int DEFAULT -1,
+ss_hdemo_sk int DEFAULT -1,
+ss_addr_sk int DEFAULT -1,
+ss_store_sk int DEFAULT -1,
+ss_promo_sk int DEFAULT -1,
+ss_ticket_number int,
+ss_quantity int DEFAULT -1,
+ss_wholesale_cost double DEFAULT -1000000.0,
+ss_list_price double DEFAULT -1000000.0,
+ss_sales_price double DEFAULT -1000000.0,
+ss_ext_discount_amt double DEFAULT -1000000.0,
+ss_ext_sales_price double DEFAULT -1000000.0,
+ss_ext_wholesale_cost double DEFAULT -1000000.0,
+ss_ext_list_price double DEFAULT -1000000.0,
+ss_ext_tax double DEFAULT -1000000.0,
+ss_coupon_amt double DEFAULT -1000000.0,
+ss_net_paid double DEFAULT -1000000.0,
+ss_net_paid_inc_tax double DEFAULT -1000000.0,
+ss_net_profit double DEFAULT -1000000.0,
+PRIMARY KEY (ss_item_sk, ss_ticket_number))
+
+CREATE UNDIRECTED EDGE ss_sold_date_sk (FROM store_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ss_sold_time_sk (FROM store_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ss_item_sk (FROM store_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ss_customer_sk (FROM store_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ss_cdemo_sk (FROM store_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ss_hdemo_sk (FROM store_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ss_addr_sk (FROM store_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ss_store_sk (FROM store_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ss_promo_sk (FROM store_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ss_ticket_number (FROM store_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ss_quantity (FROM store_sales, TO attribute_int)
+CREATE UNDIRECTED EDGE ss_wholesale_cost (FROM store_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ss_list_price (FROM store_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ss_sales_price (FROM store_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ss_ext_discount_amt (FROM store_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ss_ext_sales_price (FROM store_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ss_ext_wholesale_cost (FROM store_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ss_ext_list_price (FROM store_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ss_ext_tax (FROM store_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ss_coupon_amt (FROM store_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ss_net_paid (FROM store_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ss_net_paid_inc_tax (FROM store_sales, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ss_net_profit (FROM store_sales, TO attribute_dbl)
+
+// store_returns (sr_item_sk, sr_ticket_number)
+CREATE VERTEX store_returns (
+sr_returned_date_sk int DEFAULT -1,
+sr_return_time_sk int DEFAULT -1,
+sr_item_sk int,
+sr_customer_sk int DEFAULT -1,
+sr_cdemo_sk int DEFAULT -1,
+sr_hdemo_sk int DEFAULT -1,
+sr_addr_sk int DEFAULT -1,
+sr_store_sk int DEFAULT -1,
+sr_reason_sk int DEFAULT -1,
+sr_ticket_number int,
+sr_return_quantity int DEFAULT -1,
+sr_return_amt double DEFAULT -1000000.0,
+sr_return_tax double DEFAULT -1000000.0,
+sr_return_amt_inc_tax double DEFAULT -1000000.0,
+sr_fee double DEFAULT -1000000.0,
+sr_return_ship_cost double DEFAULT -1000000.0,
+sr_refunded_cash double DEFAULT -1000000.0,
+sr_reversed_charge double DEFAULT -1000000.0,
+sr_store_credit double DEFAULT -1000000.0,
+sr_net_loss double DEFAULT -1000000.0,
+PRIMARY KEY (sr_item_sk,sr_ticket_number))
+
+CREATE UNDIRECTED EDGE sr_returned_date_sk (FROM store_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE sr_return_time_sk (FROM store_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE sr_item_sk (FROM store_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE sr_customer_sk (FROM store_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE sr_cdemo_sk (FROM store_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE sr_hdemo_sk (FROM store_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE sr_addr_sk (FROM store_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE sr_store_sk (FROM store_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE sr_reason_sk (FROM store_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE sr_ticket_number (FROM store_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE sr_return_quantity (FROM store_returns, TO attribute_int)
+CREATE UNDIRECTED EDGE sr_return_amt (FROM store_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE sr_return_tax (FROM store_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE sr_return_amt_inc_tax (FROM store_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE sr_fee (FROM store_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE sr_return_ship_cost (FROM store_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE sr_refunded_cash (FROM store_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE sr_reversed_charge (FROM store_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE sr_store_credit (FROM store_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE sr_net_loss (FROM store_returns, TO attribute_dbl)
+CREATE UNDIRECTED EDGE ss_sr_ticket_item (FROM store_returns, TO store_sales)
+
+CREATE GRAPH tpcds(*)

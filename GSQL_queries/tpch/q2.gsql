@@ -1,0 +1,112 @@
+USE GRAPH tpch
+
+DROP QUERY q2
+
+CREATE QUERY q2() FOR GRAPH tpch {
+typedef Tuple<double ACCTBAL, string S_NAME, string N_NAME, int PARTKEY, string MFGR, string ADDRESS, string PHONE, string COMMENT> resultTuple;
+typedef Tuple<int ppartkey, string pmfgr> partTuple;
+ListAccum<resultTuple> @result;
+ListAccum<partTuple> @P_list;
+SumAccum<string> @nation;
+OrAccum @R_filter;
+MapAccum<int, MinAccum<double>> @@minCost;
+
+
+Start = {region.*};
+
+// Reduction
+    attrV = SELECT tgt
+            FROM Start:src-(R_REGIONKEY)->:tgt
+            WHERE src.R_NAME == "EUROPE"
+                  ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src-(N_REGIONKEY)->:tgt
+             ;
+
+    attrV  = SELECT tgt
+             FROM tupleV:src-(N_NATIONKEY)->:tgt
+             ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src-(S_NATIONKEY)->:tgt
+             ;
+    
+attrV = SELECT tgt
+            FROM tupleV:src-(S_SUPPKEY)->:tgt
+            ACCUM tgt.@R_filter = true
+            ;
+
+Start2 = {part.*};
+
+Start2 = SELECT src
+         FROM Start2:src
+         WHERE src.P_SIZE == 15 AND src.P_TYPE LIKE "%BRASS"
+        ;
+
+attrV = SELECT tgt
+        FROM Start2:src-(P_PARTKEY)->:tgt
+        ;
+
+tupleV = SELECT tgt
+         FROM attrV:src-(PS_PARTKEY)->:tgt
+         ;
+
+    tupleV = SELECT src
+             FROM tupleV:src-(PS_SUPPKEY)->:tgt
+             WHERE tgt.@R_filter
+             ACCUM @@minCost += (src.PS_PARTKEY -> src.PS_SUPPLYCOST)
+             ;
+
+    attrV = SELECT tgt
+             FROM tupleV:src-(PS_PARTKEY)->:tgt
+             WHERE src.PS_SUPPLYCOST == @@minCost.get(src.PS_PARTKEY)
+             ACCUM src.@R_filter = true
+            ;
+    
+    // Collection
+
+    attrV = SELECT src
+            FROM attrV:src-(P_PARTKEY:e)->:tgt
+            ACCUM src.@P_list += partTuple(tgt.P_PARTKEY, tgt.P_MFGR)
+             ;
+
+    tupleV  = SELECT tgt
+              FROM attrV:src - (PS_PARTKEY:e) -> :tgt
+              WHERE tgt.@R_filter
+              ACCUM tgt.@P_list = src.@P_list
+              POST-ACCUM src.@P_list.clear()
+             ;
+
+    attrV  = SELECT tgt
+             FROM tupleV:src - (PS_SUPPKEY:e) -> :tgt
+             ACCUM tgt.@P_list += src.@P_list
+             ;
+
+    // Supplier tuple vertices
+    tupleV  = SELECT tgt
+             FROM attrV:src - (S_SUPPKEY:e) -> :tgt
+             ACCUM tgt.@P_list = src.@P_list
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (S_NATIONKEY:e) -> :tgt
+            ;
+
+    attrV = SELECT src
+            FROM attrV:src - (N_NATIONKEY:e) -> :tgt
+            ACCUM src.@nation += tgt.N_NAME
+            ;
+
+   tupleV = SELECT src
+            FROM tupleV:src - (S_NATIONKEY:e) -> :tgt
+            ACCUM
+                   FOREACH p in src.@P_list DO
+                       src.@result += resultTuple(src.S_ACCTBAL, src.S_NAME, tgt.@nation, p.ppartkey, p.pmfgr, src.S_ADDRESS, src.S_PHONE, src.S_COMMENT)
+                    END
+            ;
+
+
+}
+
+INSTALL QUERY q2

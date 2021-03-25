@@ -1,0 +1,52 @@
+USE GRAPH tpcds
+
+DROP QUERY q52_0
+
+CREATE QUERY q52_0() FOR GRAPH tpcds {
+typedef Tuple<brandid int, brand string> resTuple;
+MapAccum<resTuple, SumAccum<double>> @@result;
+SumAccum<int> @@d_year;
+SumAccum<double> @partial_sum;
+SetAccum<int> @@dmap;
+
+
+//Reduction
+@@d_year = 2000;
+
+Start2 = {date_dim.*};
+
+    Start2  = SELECT src
+              FROM Start2:src
+              WHERE src.d_moy == 11 and src.d_year ==  2000
+              ACCUM @@dmap += src.d_date_sk
+                  ;
+
+Start = {item.*};
+
+    attrV (ANY) = SELECT tgt
+            FROM Start:src- (i_item_sk)->:tgt
+            WHERE src.i_manager_id == 1
+            ;
+ 
+   tupleV = SELECT tgt
+            FROM attrV:src - (ss_item_sk)->:tgt
+            WHERE @@dmap.contains(tgt.ss_sold_date_sk)
+            ;
+
+//Collection
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(ss_item_sk)->:tgt
+            ACCUM CASE WHEN src.ss_ext_sales_price > -1000000.0 
+                       THEN tgt.@partial_sum += src.ss_ext_sales_price
+                  END
+            ;
+
+    attrV = SELECT src
+            FROM attrV:src-(i_item_sk)->:tgt
+            ACCUM @@result += (resTuple(tgt.i_brand_id, tgt.i_brand) -> src.@partial_sum)
+              ;
+
+}
+
+INSTALL QUERY q52_0

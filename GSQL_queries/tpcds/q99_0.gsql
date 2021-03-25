@@ -1,0 +1,47 @@
+USE GRAPH tpcds
+
+DROP QUERY q99_0
+
+CREATE DISTRIBUTED QUERY q99_0() FOR GRAPH tpcds {
+MapAccum<int, string> @@sm, @@wh, @@cc;
+
+GroupByAccum<string wh, string sm, string cc, SumAccum<int> days_30, SumAccum<int> days_31_60, SumAccum<int> days_61_90, SumAccum<int> days_91_120, SumAccum<int> days_120> @@result; 
+
+//Reduction
+Start = {ship_mode.*, warehouse.*, call_center.*};
+
+Start = SELECT src
+        FROM Start:src
+        ACCUM CASE src.type
+               WHEN "ship_mode" THEN @@sm += (src.sm_ship_mode_sk -> src.sm_type)
+               WHEN "warehouse" THEN @@wh += (src.w_warehouse_sk -> src.w_warehouse_name)
+               ELSE @@cc += (src.cc_call_center_sk -> src.cc_name)
+             END
+        ;
+
+Start2 = {date_dim.*};
+
+attrV (ANY) = SELECT tgt
+              FROM Start2:src - (d_date_sk)->:tgt
+              WHERE src.d_month_seq >= 1200 AND src.d_month_seq <= 1211
+              ;
+
+attrV = SELECT src
+        FROM attrV:src - (cs_ship_date_sk)->:tgt
+        WHERE tgt.cs_sold_date_sk > 0 AND tgt.outdegree("cs_ship_mode_sk") > 0 AND tgt.outdegree("cs_call_center_sk") > 0 AND tgt.outdegree("cs_warehouse_sk") > 0
+        ACCUM CASE WHEN (tgt.cs_ship_date_sk - tgt.cs_sold_date_sk) <= 30 
+                   THEN @@result += (@@wh.get(tgt.cs_warehouse_sk), @@sm.get(tgt.cs_ship_mode_sk), @@cc.get(tgt.cs_call_center_sk) -> 1, 0, 0, 0, 0)
+                   WHEN (tgt.cs_ship_date_sk - tgt.cs_sold_date_sk) > 30 AND (tgt.cs_ship_date_sk - tgt.cs_sold_date_sk) <= 60
+                   THEN @@result += (@@wh.get(tgt.cs_warehouse_sk), @@sm.get(tgt.cs_ship_mode_sk), @@cc.get(tgt.cs_call_center_sk) -> 0, 1, 0, 0, 0)
+                   WHEN (tgt.cs_ship_date_sk - tgt.cs_sold_date_sk) > 60 AND (tgt.cs_ship_date_sk - tgt.cs_sold_date_sk) <= 90
+                   THEN @@result += (@@wh.get(tgt.cs_warehouse_sk), @@sm.get(tgt.cs_ship_mode_sk), @@cc.get(tgt.cs_call_center_sk) -> 0, 0, 1, 0, 0)
+                   WHEN (tgt.cs_ship_date_sk - tgt.cs_sold_date_sk) > 90 AND (tgt.cs_ship_date_sk - tgt.cs_sold_date_sk) <= 120
+                   THEN @@result += (@@wh.get(tgt.cs_warehouse_sk), @@sm.get(tgt.cs_ship_mode_sk), @@cc.get(tgt.cs_call_center_sk) -> 0, 0, 0, 1, 0)
+                   ELSE @@result += (@@wh.get(tgt.cs_warehouse_sk), @@sm.get(tgt.cs_ship_mode_sk), @@cc.get(tgt.cs_call_center_sk) -> 0, 0, 0, 0, 1)
+                END 
+          ;
+
+
+}
+
+INSTALL QUERY q99_0

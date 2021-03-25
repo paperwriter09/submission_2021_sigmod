@@ -1,0 +1,231 @@
+USE GRAPH tpcds
+
+DROP QUERY q64
+
+CREATE QUERY q64() FOR GRAPH tpcds {
+OrAccum @hd, @y1999, @y2000;
+SumAccum<int> @year, @year3;
+SumAccum<string> @sname, @product, @caa, @cdd;
+SumAccum<double> @sales,@refund; 
+GroupByAccum<string product, int item, string sname, string ca1, string ca2, int fsyear, int s2year, SumAccum<int> cnt, SumAccum<double> s1, SumAccum<double> s2, SumAccum<double> s3> @@cross_sales1, @@cross_sales2;
+GroupByAccum<string product, string sname, string ca1, string ca2, int syear1, int syear2, int cnt1, int cnt2, double s11, double s21, double s31, double s12, double s22, double s32, SumAccum<int> cnt_t> @@result;
+
+Start4 = {income_band.*};
+
+attrV = SELECT tgt
+        FROM Start4:src- (ib_income_band_sk)->:tgt
+        ;
+
+tupleV = SELECT tgt
+         FROM attrV:src- (hd_income_band_sk)->:tgt
+        ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (hd_demo_sk)->:tgt
+         ACCUM tgt.@hd = true
+        ;
+
+Start3 = {sstore.*};
+
+Start3 = SELECT tgt
+         FROM Start3:src-(s_store_sk)->:tgt
+         WHERE src.s_zip != "NULL"
+         ACCUM tgt.@sname = src.s_store_name + "," + src.s_zip
+         ;
+
+Start2 = {date_dim.*};
+
+attrV = SELECT tgt
+         FROM Start2:src-(d_date_sk)->:tgt
+         ACCUM tgt.@year = src.d_year
+         ;
+
+
+Start = {item.*};
+
+attrV = SELECT tgt
+        FROM Start:src- (i_item_sk)->:tgt
+        WHERE src.i_color IN ("purple","burlywood","indian","spring","floral","medium") AND
+              src.i_current_price >= 65 AND src.i_current_price <= 74 
+        ;
+
+
+tupleV = SELECT tgt
+         FROM attrV:src- (cs_item_sk)->:tgt
+         WHERE tgt.outdegree("cs_cr_order_item") > 0
+         ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (cs_cr_order_item)->:tgt
+         WHERE tgt.cr_refunded_cash > -1000000.0 AND tgt.cr_reversed_charge > -1000000.0 
+               AND tgt.cr_store_credit > -1000000.0 AND src.cs_ext_list_price > -1000000.0
+         
+         ACCUM CASE WHEN tgt.cr_refunded_cash > -1000000.0 AND tgt.cr_reversed_charge > -1000000.0
+               AND tgt.cr_store_credit > -1000000.0 
+               THEN src.@refund += tgt.cr_refunded_cash + tgt.cr_reversed_charge + tgt.cr_store_credit END,
+               CASE WHEN src.cs_ext_list_price > -1000000.0 
+               THEN src.@sales += src.cs_ext_list_price END
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (cs_item_sk)->:tgt
+        ACCUM tgt.@refund += src.@refund, tgt.@sales += src.@sales
+        HAVING tgt.@sales > 2*tgt.@refund
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (i_item_sk)->:tgt
+        ACCUM src.@product = tgt.i_product_name
+        ;
+
+tuple_ss = SELECT tgt
+         FROM attrV:src- (ss_item_sk)->:tgt
+         WHERE tgt.outdegree("ss_sr_ticket_item") > 0 AND tgt.outdegree("ss_promo_sk") > 0
+               AND tgt.outdegree("ss_cdemo_sk") > 0 AND tgt.outdegree("ss_addr_sk") > 0
+               AND tgt.outdegree("ss_customer_sk") > 0
+         ACCUM tgt.@product = src.@product
+         ;
+
+
+tuple_ss = SELECT src
+           FROM tuple_ss:src- (ss_hdemo_sk)->:tgt
+           WHERE tgt.@hd
+           ;
+
+tuple_ss = SELECT src
+           FROM tuple_ss:src- (ss_sold_date_sk)->:tgt
+           WHERE tgt.@year == 1999 OR tgt.@year == 2000
+           ACCUM CASE WHEN tgt.@year == 1999 THEN src.@y1999 = true
+                      WHEN tgt.@year == 2000 THEN src.@y2000 = true
+                 END
+           ;
+
+tuple_ss = SELECT src
+           FROM tuple_ss:src- (ss_store_sk)->:tgt
+           WHERE tgt.@sname != ""
+           ACCUM src.@sname = tgt.@sname
+           ;
+
+
+attrV = SELECT tgt
+        FROM tuple_ss:src- (ss_addr_sk)->:tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (ca_address_sk)->:tgt
+        ACCUM src.@caa += tgt.ca_street_number + "," +tgt.ca_street_name +","+tgt.ca_city+","+tgt.ca_zip
+        ;
+
+tuple_ss = SELECT src
+           FROM tuple_ss:src- (ss_addr_sk)->:tgt
+           ACCUM src.@caa = tgt.@caa
+           ;
+
+attrV = SELECT tgt
+        FROM tuple_ss:src- (ss_cdemo_sk)->:tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (cd_demo_sk)->:tgt
+        ACCUM src.@cdd += tgt.cd_marital_status
+        ;
+
+tuple_ss = SELECT src
+           FROM tuple_ss:src- (ss_cdemo_sk)->:tgt
+           ACCUM src.@cdd = tgt.@cdd
+           ;
+
+attrV = SELECT tgt
+        FROM tuple_ss:src- (ss_customer_sk)->:tgt
+        ;
+
+tupleV = SELECT tgt
+         FROM attrV:src- (c_customer_sk)->:tgt
+         WHERE tgt.outdegree("c_current_cdemo_sk") > 0 AND tgt.outdegree("c_current_addr_sk") > 0
+        ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (c_first_sales_date_sk)->:tgt
+         ACCUM src.@year = tgt.@year
+         ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (c_first_shipto_date_sk)->:tgt
+         ACCUM src.@year3 = tgt.@year
+         ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (c_current_hdemo_sk)->:tgt
+         WHERE tgt.@hd
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (c_current_addr_sk)->:tgt 
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (ca_address_sk)->:tgt
+        ACCUM src.@caa = tgt.ca_street_number + "," +tgt.ca_street_name +","+tgt.ca_city+","+tgt.ca_zip
+        ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (c_current_addr_sk)->:tgt
+         ACCUM src.@caa = tgt.@caa
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (c_current_cdemo_sk)->:tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (cd_demo_sk)->:tgt
+        ACCUM src.@cdd = tgt.cd_marital_status
+        ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (c_current_cdemo_sk)->:tgt
+         ACCUM src.@cdd = tgt.@cdd
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (c_customer_sk)->:tgt
+        ACCUM tgt.@year = src.@year, tgt.@year3 = src.@year3, tgt.@cdd = src.@cdd, tgt.@caa = src.@caa
+        ;
+
+tupleV = SELECT src
+        FROM tuple_ss:src-(ss_customer_sk)->:tgt
+        WHERE src.@y1999 AND src.@cdd != tgt.@cdd AND tgt.@caa != ""
+        ACCUM @@cross_sales1 += (src.@product, src.ss_item_sk, src.@sname, src.@caa, tgt.@caa, tgt.@year, tgt.@year3 -> 1, 0, 0, 0),
+                 CASE WHEN src.ss_wholesale_cost > -1000000.0 THEN
+                 @@cross_sales1 += (src.@product, src.ss_item_sk, src.@sname, src.@caa, tgt.@caa, tgt.@year, tgt.@year3 -> 0, src.ss_wholesale_cost, 0, 0) END,
+                 CASE WHEN src.ss_list_price > -1000000.0 THEN
+                 @@cross_sales1 += (src.@product, src.ss_item_sk, src.@sname, src.@caa, tgt.@caa, tgt.@year, tgt.@year3 -> 0, 0, src.ss_list_price, 0) END,
+                 CASE WHEN src.ss_coupon_amt > -1000000.0 THEN
+                 @@cross_sales1 += (src.@product, src.ss_item_sk, src.@sname, src.@caa, tgt.@caa, tgt.@year, tgt.@year3 -> 0, 0, 0, src.ss_coupon_amt) END
+           ;
+
+tupleV = SELECT src
+           FROM tuple_ss:src-(ss_customer_sk)->:tgt
+           WHERE src.@y2000 AND src.@cdd != tgt.@cdd AND tgt.@caa != ""
+           ACCUM @@cross_sales2 += (src.@product, src.ss_item_sk, src.@sname, src.@caa, tgt.@caa, tgt.@year, tgt.@year3 -> 1, 0, 0, 0),
+                 CASE WHEN src.ss_wholesale_cost > -1000000.0 THEN
+                 @@cross_sales2 += (src.@product, src.ss_item_sk, src.@sname, src.@caa, tgt.@caa, tgt.@year, tgt.@year3 -> 0, src.ss_wholesale_cost, 0, 0) END,
+                 CASE WHEN src.ss_list_price > -1000000.0 THEN
+                 @@cross_sales2 += (src.@product, src.ss_item_sk, src.@sname, src.@caa, tgt.@caa, tgt.@year, tgt.@year3 -> 0, 0, src.ss_list_price, 0) END,
+                 CASE WHEN src.ss_coupon_amt > -1000000.0 THEN
+                 @@cross_sales2 += (src.@product, src.ss_item_sk, src.@sname, src.@caa, tgt.@caa, tgt.@year, tgt.@year3 -> 0, 0, 0, src.ss_coupon_amt) END
+           ;
+
+
+FOREACH (k1,k2,k3,k4,k5,k6,k7,v1,v2,v3,v4) IN @@cross_sales1 DO
+  FOREACH (kk1,kk2,kk3,kk4,kk5,kk6,kk7,vv1,vv2,vv3,vv4) IN @@cross_sales2 DO
+     IF k2 == kk2 AND k3 == kk3 AND vv1 <= v1 THEN
+       @@result += (k1,k3,k4,k5,1999,2000,v1,vv1,v2,v3,v4,vv2,vv3,vv4 -> 1);
+     END;
+  END;
+END;
+
+
+}
+
+INSTALL QUERY q64

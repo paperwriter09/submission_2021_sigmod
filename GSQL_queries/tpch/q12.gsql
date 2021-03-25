@@ -1,0 +1,39 @@
+USE GRAPH tpch
+
+DROP QUERY q12
+
+CREATE DISTRIBUTED QUERY q12() FOR GRAPH tpch {
+ListAccum<string> @shipmodes;
+MapAccum<string, SumAccum<int>> @@highResult, @@lowResult;
+
+
+Start = {attribute_date.*};
+
+// Reduction
+    Start = SELECT src
+            FROM Start:src
+            WHERE src.id >= to_datetime("1994-01-01") AND src.id < to_datetime("1995-01-01")
+            ;
+
+    tupleV = SELECT tgt
+             FROM Start:src - (L_RECEIPTDATE:e) -> :tgt
+             WHERE (tgt.L_SHIPMODE == "MAIL" OR  tgt.L_SHIPMODE == "SHIP") AND tgt.L_COMMITDATE < tgt.L_RECEIPTDATE AND tgt.L_SHIPDATE < tgt.L_COMMITDATE
+            ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (L_ORDERKEY:e) -> :tgt
+            ACCUM tgt.@shipmodes += src.L_SHIPMODE
+    ;
+
+// Collection
+     attrV = SELECT src
+               FROM attrV:src-(O_ORDERKEY:e)->:tgt
+               ACCUM FOREACH s in src.@shipmodes DO
+                     IF tgt.O_ORDERPRIORITY == "1-URGENT" OR tgt.O_ORDERPRIORITY == "2-HIGH" THEN @@highResult += (s -> 1) 
+                     ELSE @@lowResult += (s -> 1) END
+               END
+               ;
+
+}
+
+INSTALL QUERY q12

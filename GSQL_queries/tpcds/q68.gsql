@@ -1,0 +1,96 @@
+USE GRAPH tpcds
+
+DROP QUERY q68
+
+CREATE QUERY q68() FOR GRAPH tpcds {
+OrAccum @s_filter, @hd_filter;
+SumAccum<string> @city, @cname;
+GroupByAccum<string cname, string city, string b_city, int ticket, SumAccum<double> price, SumAccum<double> tax, SumAccum<double> lprice> @@result;
+
+//Reduction
+Start4 = {customer_address.*};
+Start4 = SELECT src
+         FROM Start4:src- (ca_address_sk)->:tgt
+         WHERE src.ca_city != "NULL"
+         ACCUM tgt.@city = src.ca_city
+        ;
+
+Start = {sstore.*};
+
+Start = SELECT src
+        FROM Start:src- (s_store_sk)->:tgt
+        WHERE src.s_city == "Fairview" OR src.s_city == "Midway"
+        ACCUM tgt.@s_filter = true
+        ;
+
+Start3 = {household_demographics.*};
+
+Start3 = SELECT src
+         FROM Start3:src- (hd_demo_sk)->:tgt
+         WHERE src.hd_dep_count == 4 OR src.hd_vehicle_count == 3
+         ACCUM tgt.@hd_filter = true
+        ;
+
+Start2 = {date_dim.*};
+
+attrV = SELECT tgt
+        FROM Start2:src- (d_date_sk)->:tgt
+        WHERE src.d_dom >= 1 AND src.d_dom <= 2 AND (src.d_year == 1999 OR src.d_year == 2000 OR src.d_year == 2001)
+              ;
+
+tupleV = SELECT tgt
+         FROM attrV:src- (ss_sold_date_sk)->:tgt
+               ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (ss_hdemo_sk)->:tgt
+         WHERE tgt.@hd_filter
+         ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (ss_store_sk)->:tgt
+         WHERE tgt.@s_filter
+         ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (ss_addr_sk)->:tgt
+         WHERE tgt.@city != ""
+         ACCUM src.@city = tgt.@city
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (ss_customer_sk)->:tgt
+        ;
+
+
+customerV = SELECT tgt
+           FROM attrV:src- (c_customer_sk)->:tgt
+           ;
+
+
+customerV = SELECT src
+            FROM customerV:src- (c_current_addr_sk)->:tgt
+            ACCUM src.@city = tgt.@city
+          ;
+
+attrV = SELECT tgt 
+        FROM customerV:src- (c_customer_sk)->:tgt
+        ACCUM tgt.@city = src.@city, tgt.@cname = src.c_last_name + "," + src.c_first_name
+        ;
+
+//Collection
+
+tupleV = SELECT src
+         FROM tupleV:src- (ss_customer_sk)->:tgt
+         WHERE src.@city != tgt.@city AND tgt.@city != ""
+         ACCUM CASE WHEN src.ss_ext_sales_price > -1000000.0
+               THEN @@result += (tgt.@cname, tgt.@city, src.@city, src.ss_ticket_number -> src.ss_ext_sales_price, 0, 0) END,
+               CASE WHEN src.ss_ext_tax > -1000000.0 
+               THEN @@result += (tgt.@cname, tgt.@city, src.@city, src.ss_ticket_number -> 0, src.ss_ext_tax, 0) END,
+               CASE WHEN src.ss_ext_list_price > -1000000.0
+               THEN @@result += (tgt.@cname, tgt.@city, src.@city, src.ss_ticket_number -> 0, 0, src.ss_ext_list_price) END
+         ;
+
+}
+
+INSTALL QUERY q68

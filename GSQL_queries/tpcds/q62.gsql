@@ -1,0 +1,57 @@
+USE GRAPH tpcds
+
+DROP QUERY q62
+
+CREATE DISTRIBUTED QUERY q62() FOR GRAPH tpcds {
+SumAccum<string> @sm, @wh, @web;
+
+GroupByAccum<string wh, string sm, string web, SumAccum<int> days_30, SumAccum<int> days_31_60, SumAccum<int> days_61_90, SumAccum<int> days_91_120, SumAccum<int> days_120> @@result; 
+
+//Reduction
+
+Start2 = {date_dim.*};
+
+attrV = SELECT tgt
+        FROM Start2:src - (d_date_sk)->:tgt
+        WHERE src.d_month_seq >= 1200 AND src.d_month_seq <= 1211
+              ;
+
+tuple_ws = SELECT tgt
+           FROM attrV:src - (ws_ship_date_sk)->:tgt
+           WHERE tgt.ws_sold_date_sk > 0 AND tgt.outdegree("ws_ship_mode_sk") > 0 AND tgt.outdegree("ws_web_site_sk") > 0 AND tgt.outdegree("ws_warehouse_sk") > 0
+           ;
+
+//Collection
+
+Start = {ship_mode.*, warehouse.*, web_site.*};
+
+attrV = SELECT tgt
+        FROM Start:src - ((sm_ship_mode_sk|w_warehouse_sk|web_site_sk):e)->:tgt
+        ACCUM CASE e.type 
+               WHEN "sm_ship_mode_sk" THEN tgt.@sm = src.sm_type
+               WHEN "w_warehouse_sk" THEN tgt.@wh = src.w_warehouse_name
+               ELSE tgt.@web = src.web_name
+             END
+        ;
+
+tuple_ws = SELECT src
+           FROM tuple_ws:src - ((ws_warehouse_sk|ws_web_site_sk|ws_ship_mode_sk):e)->:tgt
+           ACCUM CASE e.type
+                   WHEN "ws_warehouse_sk" THEN src.@wh = tgt.@wh
+                   WHEN "ws_web_site_sk" THEN src.@web = tgt.@web
+                   ELSE src.@sm = tgt.@sm
+                END
+          POST-ACCUM CASE WHEN (src.ws_ship_date_sk - src.ws_sold_date_sk) <= 30 THEN @@result += (src.@wh, src.@sm, src.@web -> 1, 0, 0, 0, 0)
+                      WHEN (src.ws_ship_date_sk - src.ws_sold_date_sk) > 30 AND (src.ws_ship_date_sk - src.ws_sold_date_sk) <= 60
+                                                                             THEN @@result += (src.@wh, src.@sm, src.@web -> 0, 1, 0, 0, 0)
+                      WHEN (src.ws_ship_date_sk - src.ws_sold_date_sk) > 60 AND (src.ws_ship_date_sk - src.ws_sold_date_sk) <= 90
+                                                                             THEN @@result += (src.@wh, src.@sm, src.@web -> 0, 0, 1, 0, 0)
+                      WHEN (src.ws_ship_date_sk - src.ws_sold_date_sk) > 90 AND (src.ws_ship_date_sk - src.ws_sold_date_sk) <= 120
+                                                                             THEN @@result += (src.@wh, src.@sm, src.@web -> 0, 0, 0, 1, 0)
+                      ELSE @@result += (src.@wh, src.@sm, src.@web -> 0, 0, 0, 0, 1)
+                END 
+          ;
+
+}
+
+INSTALL QUERY q62

@@ -1,0 +1,53 @@
+USE GRAPH tpcds
+
+DROP QUERY q55
+
+CREATE QUERY q55() FOR GRAPH tpcds {
+typedef Tuple<brand_id int, brand string> tupleBrand;
+MapAccum<tupleBrand, SumAccum<double>> @@ext_price;
+SumAccum<double> @ext_price_l;
+OrAccum @d_filter;
+
+Start = {date_dim.*};
+
+//Reduction
+
+    Start = SELECT tgt
+            FROM Start:src-(d_date_sk)->:tgt
+            WHERE src.d_moy == 11 and src.d_year == 1999
+            ACCUM tgt.@d_filter = true
+                   ;
+
+Start2 = {item.*};
+
+    attrV = SELECT tgt
+            FROM Start2:src-(i_item_sk)->:tgt
+            WHERE src.i_manager_id == 28
+            ;
+
+   tupleV = SELECT tgt
+            FROM attrV:src- (ss_item_sk)->:tgt
+                  ;
+
+   tupleV = SELECT src
+            FROM tupleV:src - (ss_sold_date_sk)-> :tgt
+            WHERE tgt.@d_filter
+            ;  
+
+//Collection
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(ss_item_sk)->:tgt
+            ACCUM CASE WHEN src.ss_ext_sales_price > -1000000.0 
+                       THEN tgt.@ext_price_l += src.ss_ext_sales_price
+                  END
+            ;
+
+    tupleV  = SELECT tgt
+              FROM attrV:src-(i_item_sk)->:tgt
+              ACCUM @@ext_price += (tupleBrand(tgt.i_brand_id, tgt.i_brand) -> src.@ext_price_l)
+              ;
+
+}
+
+INSTALL QUERY q55

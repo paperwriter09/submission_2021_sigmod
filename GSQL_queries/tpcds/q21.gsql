@@ -1,0 +1,88 @@
+USE GRAPH tpcds
+
+DROP QUERY q21
+
+CREATE QUERY q21() FOR GRAPH tpcds {
+typedef Tuple<wh string, item string, inv_before int, inv_after int> resTuple;
+ListAccum<resTuple> @@resultFinal;
+GroupByAccum<string wh, string item, SumAccum<int> inv_before, SumAccum<int> inv_after> @@result;
+SumAccum<string> @item, @wh;
+OrAccum @before, @i_filter;
+
+
+Start = {attribute_date.*};
+
+tupleV (ANY) = SELECT tgt
+               FROM Start:src- (d_date)->:tgt
+               WHERE src.id >= to_datetime("2000-02-10") AND src.id <= to_datetime("2000-04-10")
+               ACCUM CASE WHEN src.id < to_datetime("2000-03-11")
+                          THEN tgt.@before = true END 
+               ;
+
+attrV (ANY) = SELECT tgt
+              FROM tupleV:src- (d_date_sk)->:tgt
+              ACCUM tgt.@before = src.@before
+              ;
+
+tupleV = SELECT tgt
+         FROM attrV:src - (inv_date_sk)->:tgt
+         WHERE tgt.inv_quantity_on_hand != -1
+         ACCUM tgt.@before = src.@before
+         ;
+
+
+Start2 = {item.*};
+
+attrV = SELECT tgt
+        FROM Start2:src - (i_item_sk)->:tgt
+        WHERE src.i_current_price >= 0.99 AND src.i_current_price <= 1.49
+        ACCUM tgt.@i_filter = true
+        ;
+
+tupleV = SELECT src
+         FROM tupleV:src -(inv_item_sk)->:tgt
+         WHERE tgt.@i_filter
+         ;
+
+//Collection 
+attrV = SELECT tgt
+        FROM tupleV:src -(inv_item_sk)->:tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src -(i_item_sk)->:tgt
+        ACCUM src.@item = tgt.i_item_id
+        ;
+
+tupleV = SELECT src
+         FROM tupleV:src -(inv_item_sk)->:tgt
+         ACCUM src.@item = tgt.@item
+         ;
+
+
+Start3 = {warehouse.*};
+
+attrV = SELECT tgt
+        FROM Start3:src -(w_warehouse_sk)->:tgt
+        ACCUM tgt.@wh = src.w_warehouse_name
+        ;
+
+tupleV = SELECT src
+         FROM tupleV:src -(inv_warehouse_sk)->:tgt
+         ACCUM CASE WHEN src.@before THEN @@result += (tgt.@wh,src.@item -> src.inv_quantity_on_hand, 0)
+                                     ELSE @@result += (tgt.@wh,src.@item -> 0, src.inv_quantity_on_hand)
+               END
+         ;
+
+//Construct final output tuples
+
+FOREACH (k1,k2,v1,v2) IN @@result DO
+   CASE WHEN v2/v1 >= 0.666666 AND v2/v1 <= 1.50 
+        THEN @@resultFinal += resTuple(k1,k2,v1,v2);
+   END;
+END;
+
+
+}
+
+INSTALL QUERY q21

@@ -1,0 +1,90 @@
+USE GRAPH tpch
+
+DROP QUERY q5
+
+CREATE QUERY q5() FOR GRAPH tpch {
+SumAccum<double> @revenue;
+SumAccum<int> @c_nation, @s_nation;
+
+Start = {region.*};
+
+// Reduction
+    Start = SELECT src
+            FROM Start:src
+            WHERE src.R_NAME == "ASIA"
+            ;
+
+    attrV = SELECT tgt
+            FROM Start:src - (R_REGIONKEY) -> :tgt
+                  ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (N_REGIONKEY) -> :tgt
+                   ;
+
+    attrn = SELECT tgt
+            FROM tupleV:src - (N_NATIONKEY) -> :tgt
+            ;
+    
+    tupleV = SELECT tgt
+             FROM attrn:src - (S_NATIONKEY) -> :tgt
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (S_SUPPKEY) -> :tgt
+            ACCUM tgt.@s_nation = src.S_NATIONKEY
+            ;
+
+    tupleV = SELECT tgt
+             FROM attrn:src - (C_NATIONKEY) -> :tgt
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (C_CUSTKEY) -> :tgt
+            ACCUM tgt.@c_nation = src.C_NATIONKEY
+            ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (O_CUSTKEY) -> :tgt
+             WHERE tgt.O_ORDERDATE >= to_datetime("1994-01-01") AND tgt.O_ORDERDATE < to_datetime("1995-01-01")
+             ACCUM tgt.@c_nation = src.@c_nation
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (O_ORDERKEY) -> :tgt
+            ACCUM tgt.@c_nation = src.@c_nation
+            ;
+
+// Collection
+    tupleV = SELECT tgt
+             FROM attrV:src - (L_ORDERKEY) -> :tgt
+             ACCUM tgt.@c_nation = src.@c_nation
+            ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (L_SUPPKEY) -> :tgt
+            WHERE tgt.@s_nation!= 0 AND src.@c_nation == tgt.@s_nation
+            ACCUM tgt.@revenue += src.L_EXTENDEDPRICE * (1 - src.L_DISCOUNT)
+            ;
+
+     tupleV = SELECT tgt
+              FROM attrV:src - (S_SUPPKEY) -> :tgt
+              ACCUM tgt.@revenue = src.@revenue
+              POST-ACCUM src.@revenue = 0
+              ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (S_NATIONKEY) -> :tgt
+            ACCUM tgt.@revenue += src.@revenue
+            ;
+
+    tupleV = SELECT tgt
+            FROM attrV:src - (N_NATIONKEY) -> :tgt
+            ACCUM tgt.@revenue = src.@revenue
+            ;
+           
+
+
+}
+
+INSTALL QUERY q5

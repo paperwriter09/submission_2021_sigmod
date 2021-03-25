@@ -1,0 +1,45 @@
+USE GRAPH tpcds
+
+DROP QUERY q50
+
+CREATE QUERY q50() FOR GRAPH tpcds {
+SumAccum<int> @diff, @days_30, @days_31_60, @days_61_90, @days_91_120, @days_120;
+
+Start = {date_dim.*};
+
+attrV (ANY) = SELECT tgt
+              FROM Start:src - (d_date_sk)->:tgt
+              WHERE src.d_year == 2001 AND src.d_moy == 8
+              ;
+
+tupleV (ANY) = SELECT tgt
+               FROM attrV:src - (sr_returned_date_sk)->:tgt
+               WHERE tgt.outdegree("sr_customer_sk") > 0 //to avoid where sr_customer_sk == -1 (NULL alternative) since here -1 == -1 will be true
+               ;
+
+tupleV = SELECT tgt
+         FROM tupleV:src -(ss_sr_ticket_item)->:tgt
+         WHERE tgt.outdegree("ss_sold_date_sk") > 0 AND src.sr_customer_sk == tgt.ss_customer_sk
+         ACCUM tgt.@diff = src.sr_returned_date_sk - tgt.ss_sold_date_sk
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src -(ss_store_sk)->:tgt
+        ACCUM CASE WHEN src.@diff <= 30 THEN tgt.@days_30 += 1
+                   WHEN src.@diff > 30 AND src.@diff <= 60 THEN tgt.@days_31_60 += 1
+                   WHEN src.@diff > 60 AND src.@diff <= 90 THEN tgt.@days_61_90 += 1
+                   WHEN src.@diff > 90 AND src.@diff <= 120 THEN tgt.@days_91_120 += 1
+                   WHEN src.@diff > 120 THEN tgt.@days_120 += 1
+              END
+        ;
+
+
+tupleV = SELECT tgt
+         FROM attrV:src - (s_store_sk)->:tgt
+         ACCUM tgt.@days_30 = src.@days_30, tgt.@days_31_60 = src.@days_31_60, tgt.@days_61_90 = src.@days_61_90,
+               tgt.@days_91_120 = src.@days_91_120, tgt.@days_120 = src.@days_120
+         ;
+
+}
+
+INSTALL QUERY q50

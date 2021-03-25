@@ -1,0 +1,43 @@
+USE GRAPH tpcds
+
+DROP QUERY q96_0
+
+CREATE QUERY q96_0() FOR GRAPH tpcds {
+SumAccum<int> @@cnt;
+SetAccum<int> @@hdmap, @@smap;
+
+Start = {household_demographics.*};
+
+Start = SELECT src
+        FROM Start:src
+        WHERE src.hd_dep_count == 7
+        ACCUM @@hdmap += src.hd_demo_sk
+        ;
+
+Start3 = {sstore.*};
+
+Start3 = SELECT src
+        FROM Start3:src
+        WHERE src.s_store_name == "ese"
+        ACCUM @@smap += src.s_store_sk
+        ;
+
+Start2 = {time_dim.*};
+
+attrV = SELECT tgt
+        FROM Start2:src - (t_time_sk)->:tgt
+        WHERE src.t_hour == 20 AND src.t_minute >= 30
+        ;
+
+tupleV = SELECT tgt
+         FROM attrV:src - (ss_sold_time_sk)->:tgt
+         WHERE @@hdmap.contains(tgt.ss_hdemo_sk) AND @@smap.contains(tgt.ss_store_sk)
+         ;
+
+
+@@cnt = tupleV.size();
+
+
+}
+
+INSTALL QUERY q96_0

@@ -1,0 +1,77 @@
+USE GRAPH tpcds
+
+DROP QUERY q73
+
+CREATE QUERY q73() FOR GRAPH tpcds {
+typedef Tuple<string custinfo, int ticket, int cnt> resTuple;
+ListAccum<resTuple> @@result;
+OrAccum @hd_filter, @s_filter;
+GroupByAccum<int ticket, int customer, SumAccum<int> cnt> @@dj;
+MapAccum<int, string> @@name;
+
+//Reduction
+
+Start2 = {household_demographics.*};
+
+Start2 = SELECT tgt
+         FROM Start2:src-(hd_demo_sk)->:tgt
+         WHERE (src.hd_buy_potential == ">10000" OR src.hd_buy_potential == "Unknown") AND
+               src.hd_vehicle_count > 0 AND (src.hd_dep_count/src.hd_vehicle_count) > 1
+         ACCUM tgt.@hd_filter = true
+         ;
+
+Start3 = {sstore.*};
+
+Start3 = SELECT tgt
+         FROM Start3:src-(s_store_sk)->:tgt
+         WHERE src.s_county == "Williamson County" OR src.s_county == "Franklin Parish" OR
+              src.s_county == "Bronx County" OR src.s_county == "Orange County"
+         ACCUM tgt.@s_filter = true
+         ;
+
+Start = {date_dim.*};
+
+attrV = SELECT tgt
+        FROM Start:src- (d_date_sk)->:tgt
+        WHERE (src.d_year == 1999 OR src.d_year == 2000 OR src.d_year == 2001) AND
+                src.d_dom >= 1 AND src.d_dom <= 2
+        ;
+
+tupleV = SELECT tgt
+         FROM attrV:src- (ss_sold_date_sk)->:tgt
+      ;
+
+
+tupleV = SELECT src
+         FROM tupleV:src- (ss_hdemo_sk)->:tgt
+         WHERE tgt.@hd_filter
+          ;
+
+//Collection
+tupleV = SELECT src
+         FROM tupleV:src- (ss_store_sk)->:tgt
+         WHERE tgt.@s_filter
+         ACCUM CASE WHEN src.ss_customer_sk != -1 THEN
+                 @@dj += (src.ss_ticket_number, src.ss_customer_sk -> 1)
+               END
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (ss_customer_sk)->:tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (c_customer_sk)->:tgt
+        ACCUM @@name += (src.id -> tgt.c_last_name + "," + tgt.c_first_name + "," + tgt.c_salutation + "," + tgt.c_preferred_cust_flag)
+       ;
+
+FOREACH (k1,k2,v) IN @@dj DO
+  IF v >= 1 AND v <= 5 THEN
+    @@result += resTuple(@@name.get(k2),k1,v);
+  END;
+END;
+
+
+}
+
+INSTALL QUERY q73

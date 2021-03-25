@@ -1,0 +1,69 @@
+USE GRAPH tpch
+
+DROP QUERY q20
+
+CREATE QUERY q20() FOR GRAPH tpch {
+SumAccum<double> @sumQuantity;
+OrAccum @N_filter, @P_filter;
+
+Start = {nation.*};
+
+// Reduction
+
+    attrV = SELECT tgt
+            FROM Start:src - (N_NATIONKEY:e) -> :tgt
+            WHERE src.N_NAME == "CANADA"
+            ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (S_NATIONKEY:e) -> :tgt
+                   ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (S_SUPPKEY:e) -> :tgt
+            ACCUM tgt.@N_filter = true
+            ;
+
+   tupleV = SELECT tgt
+            FROM attrV:src - (PS_SUPPKEY:e) -> :tgt
+            ;
+   
+   attrV = SELECT tgt
+            FROM tupleV:src - (PS_PARTKEY:e) -> :tgt
+            ;
+
+   attrV = SELECT src
+           FROM attrV:src - (P_PARTKEY:e) -> :tgt
+           WHERE tgt.P_NAME LIKE "forest%"
+           ;
+
+   attrV = SELECT src
+           FROM attrV:src - (PS_PARTKEY:e) -> :tgt
+           ACCUM tgt.@P_filter = true
+           ;
+
+   tupleV = SELECT tgt
+            FROM attrV:src - (L_PARTKEY:e) -> :tgt
+            WHERE tgt.L_SHIPDATE >= to_datetime("1994-01-01") AND tgt.L_SHIPDATE < to_datetime("1995-01-01")
+            ;
+
+   attrV = SELECT tgt
+           FROM tupleV:src - (L_SUPPKEY:e) -> :tgt
+           WHERE tgt.@N_filter
+           ACCUM tgt.@sumQuantity += src.L_QUANTITY
+           ;
+
+  attrV = SELECT src
+           FROM attrV:src - (PS_SUPPKEY:e) -> :tgt
+           WHERE tgt.@P_filter AND  tgt.PS_AVAILQTY > 0.5 * src.@sumQuantity
+           ;
+
+// Collection
+    tupleV = SELECT tgt
+            FROM attrV:src - (S_SUPPKEY:e) -> :tgt
+            ;
+
+
+}
+
+INSTALL QUERY q20

@@ -1,0 +1,65 @@
+USE GRAPH tpcds
+
+DROP QUERY q34_0
+
+CREATE QUERY q34_0() FOR GRAPH tpcds {
+typedef Tuple<string custinfo, int ticket, int cnt> resTuple;
+ListAccum<resTuple> @@result;
+SetAccum<int> @@d_filter, @@s_filter;
+GroupByAccum<int ticket, int customer, SumAccum<int> cnt> @@dn;
+MapAccum<int, string> @@name;
+
+//Reduction
+
+Start = {date_dim.*};
+
+Start = SELECT src
+	      FROM Start:src
+	      WHERE (src.d_year == 1999 OR src.d_year == 2000 OR src.d_year == 2001) AND 
+                ((src.d_dom >= 1 AND src.d_dom <= 3) OR (src.d_dom >= 25 AND src.d_dom <= 28))
+	      ACCUM @@d_filter += src.d_date_sk
+       ;
+
+Start3 = {sstore.*};
+
+Start3 = SELECT src
+         FROM Start3:src
+         WHERE src.s_county == "Williamson County"
+         ACCUM @@s_filter += src.s_store_sk
+         ;
+
+Start2 = {household_demographics.*};
+
+attrV = SELECT tgt
+        FROM Start2:src-(hd_demo_sk)->:tgt
+        WHERE (src.hd_buy_potential == ">10000" OR src.hd_buy_potential == "Unknown") AND
+               src.hd_vehicle_count > 0 AND (src.hd_dep_count/src.hd_vehicle_count) > 1.2 
+        ;
+
+tupleV = SELECT tgt
+         FROM attrV:src- (ss_hdemo_sk)->:tgt
+         WHERE @@d_filter.contains(tgt.ss_sold_date_sk) AND @@s_filter.contains(tgt.ss_store_sk)
+         ACCUM CASE WHEN tgt.ss_customer_sk != -1 THEN
+                 @@dn += (tgt.ss_ticket_number, tgt.ss_customer_sk -> 1)
+               END
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (ss_customer_sk)->:tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (c_customer_sk)->:tgt
+        ACCUM @@name += (src.id -> tgt.c_last_name + "," + tgt.c_first_name + "," + tgt.c_salutation + "," + tgt.c_preferred_cust_flag)
+       ;
+
+FOREACH (k1,k2,v) IN @@dn DO
+  IF v >= 15 AND v <= 20 THEN
+    @@result += resTuple(@@name.get(k2),k1,v);
+  END;
+END;
+
+
+}
+
+INSTALL QUERY q34_0

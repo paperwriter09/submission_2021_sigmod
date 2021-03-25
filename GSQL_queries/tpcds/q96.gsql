@@ -1,0 +1,53 @@
+USE GRAPH tpcds
+
+DROP QUERY q96
+
+CREATE QUERY q96() FOR GRAPH tpcds {
+SumAccum<int> @@cnt;
+OrAccum @hd_filter, @s_filter;
+
+
+Start2 = {time_dim.*};
+
+attrV (ANY) = SELECT tgt
+              FROM Start2:src - (t_time_sk)->:tgt
+              WHERE src.t_hour == 20 AND src.t_minute >= 30
+              ;
+
+tupleV = SELECT tgt
+         FROM attrV:src - (ss_sold_time_sk)->:tgt
+         ;
+
+
+Start = {household_demographics.*};
+
+attrV = SELECT tgt
+        FROM Start:src - (hd_demo_sk)->:tgt
+        WHERE src.hd_dep_count == 7
+        ACCUM tgt.@hd_filter = true
+        ;
+
+Start3 = {sstore.*};
+
+attrV = SELECT tgt
+        FROM Start3:src - (s_store_sk)->:tgt
+        WHERE src.s_store_name == "ese"
+        ACCUM tgt.@s_filter = true
+        ;
+
+tupleV_1 = SELECT src
+         FROM tupleV:src -(ss_hdemo_sk)->:tgt
+         WHERE tgt.@hd_filter
+         ;
+
+tupleV_2 = SELECT src
+         FROM tupleV_1:src -(ss_store_sk)->:tgt
+         WHERE tgt.@s_filter
+         ;
+
+@@cnt = tupleV_2.size();
+
+
+}
+
+INSTALL QUERY q96

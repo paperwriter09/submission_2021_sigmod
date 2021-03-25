@@ -1,0 +1,60 @@
+USE GRAPH tpcds
+
+DROP QUERY q90
+
+CREATE QUERY q90() FOR GRAPH tpcds {
+SumAccum<double> @@am_pm_ratio, @@am, @@pm;
+OrAccum @hd_filter, @am_filter, @pm_filter;
+
+Start3 = {web_page.*};
+
+attrV (ANY) = SELECT tgt
+              FROM Start3:src - (wp_web_page_sk)->:tgt
+              WHERE src.wp_char_count >= 5000 AND src.wp_char_count <= 5200
+              ;
+
+tupleV  = SELECT tgt
+         FROM attrV:src -(ws_web_page_sk)->:tgt
+          ;
+
+Start = {household_demographics.*};
+
+attrV = SELECT tgt
+        FROM Start:src - (hd_demo_sk)->:tgt
+        WHERE src.hd_dep_count == 6
+        ACCUM tgt.@hd_filter = true
+        ;
+
+Start2 = {time_dim.*};
+
+attrV = SELECT tgt
+        FROM Start2:src - (t_time_sk)->:tgt
+        WHERE (src.t_hour >=8 AND src.t_hour <= 9) OR (src.t_hour >=19 AND src.t_hour <= 20)
+        ACCUM CASE WHEN src.t_hour >=8 AND src.t_hour <= 9 THEN tgt.@am_filter = true
+                   ELSE tgt.@pm_filter = true
+              END
+        ;
+
+tupleV_1 = SELECT src
+           FROM tupleV:src -(ws_ship_hdemo_sk)->:tgt
+           WHERE tgt.@hd_filter
+            ;
+
+amc = SELECT src
+      FROM tupleV_1:src - (ws_sold_time_sk)->:tgt
+      WHERE tgt.@am_filter
+      ;
+
+pmc = SELECT src
+      FROM tupleV_1:src - (ws_sold_time_sk)->:tgt
+      WHERE tgt.@pm_filter
+      ;
+
+@@am = amc.size();
+@@pm = pmc.size();
+@@am_pm_ratio = @@am/@@pm;
+
+
+}
+
+INSTALL QUERY q90

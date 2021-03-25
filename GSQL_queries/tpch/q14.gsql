@@ -1,0 +1,43 @@
+USE GRAPH tpch
+
+DROP QUERY q14
+
+CREATE DISTRIBUTED QUERY q14() FOR GRAPH tpch {
+SumAccum<double> @@totalRevenue;
+SumAccum<double> @@promoRevenue;
+SumAccum<double> @revenue;
+double promo;
+
+
+Start = {attribute_date.*};
+
+// Reduction
+    Start = SELECT src
+            FROM Start:src
+            WHERE src.id >= to_datetime("1995-09-01") AND src.id < to_datetime("1995-10-01")
+            ;
+
+    tupleV = SELECT tgt
+            FROM Start:src - (L_SHIPDATE) -> :tgt
+            ;
+
+// Collection
+    attrV = SELECT tgt
+            FROM tupleV:src - (L_PARTKEY) -> :tgt
+            ACCUM tgt.@revenue += src.L_EXTENDEDPRICE * (1 - src.L_DISCOUNT)
+            POST-ACCUM @@totalRevenue += tgt.@revenue
+            ;
+
+   attrV = SELECT src
+           FROM attrV:src - (P_PARTKEY) -> :tgt
+           WHERE tgt.P_TYPE LIKE "PROMO%"
+           ACCUM @@promoRevenue += src.@revenue
+           ;
+
+
+promo = 100 * @@promoRevenue/@@totalRevenue;
+
+
+}
+
+INSTALL QUERY q14

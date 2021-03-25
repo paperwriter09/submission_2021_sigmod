@@ -1,0 +1,47 @@
+USE GRAPH tpcds
+
+DROP QUERY q90_0
+
+CREATE QUERY q90_0() FOR GRAPH tpcds {
+SumAccum<double> @@am_pm_ratio, @@am, @@pm;
+SetAccum<int> @@hdmap, @@amap, @@pmap;
+
+Start = {household_demographics.*};
+
+Start = SELECT src
+        FROM Start:src
+        WHERE src.hd_dep_count == 6
+        ACCUM @@hdmap += src.hd_demo_sk
+        ;
+
+Start2 = {time_dim.*};
+
+Start2 = SELECT src
+        FROM Start2:src
+        WHERE (src.t_hour >=8 AND src.t_hour <= 9) OR (src.t_hour >=19 AND src.t_hour <= 20)
+        ACCUM CASE WHEN src.t_hour >=8 AND src.t_hour <= 9 THEN @@amap += src.t_time_sk
+                   ELSE @@pmap += src.t_time_sk
+              END
+        ;
+
+Start3 = {web_page.*};
+
+attrV (ANY) = SELECT tgt
+              FROM Start3:src - (wp_web_page_sk)->:tgt
+              WHERE src.wp_char_count >= 5000 AND src.wp_char_count <= 5200
+              ;
+
+tupleV  = SELECT tgt
+          FROM attrV:src -(ws_web_page_sk)->:tgt
+          WHERE @@hdmap.contains(tgt.ws_ship_hdemo_sk)
+          POST-ACCUM CASE WHEN @@amap.contains(tgt.ws_sold_time_sk) THEN @@am += 1
+                          WHEN @@pmap.contains(tgt.ws_sold_time_sk) THEN @@pm += 1
+                       END
+           ;
+
+@@am_pm_ratio = @@am/@@pm;
+
+
+}
+
+INSTALL QUERY q90_0

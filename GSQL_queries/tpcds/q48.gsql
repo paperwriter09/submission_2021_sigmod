@@ -1,0 +1,67 @@
+USE GRAPH tpcds
+
+DROP QUERY q48
+
+CREATE QUERY q48() FOR GRAPH tpcds {
+SumAccum<int> @cd, @ca;
+SumAccum<int> @@sum_quantity;
+
+//Reduction
+Start1 = {customer_demographics.*};
+
+    attrV (ANY) = SELECT tgt
+                  FROM Start1:src-(cd_demo_sk)->:tgt
+                  WHERE (src.cd_marital_status == "M" AND src.cd_education_status == "4 yr Degree") OR
+                        (src.cd_marital_status == "D" AND src.cd_education_status == "2 yr Degree") OR
+                        (src.cd_marital_status == "S" AND src.cd_education_status == "College")
+                  ACCUM CASE WHEN src.cd_marital_status == "M" AND src.cd_education_status == "4 yr Degree" 
+                             THEN tgt.@cd = 1
+                             WHEN src.cd_marital_status == "D" AND src.cd_education_status == "2 yr Degree"
+                             THEN tgt.@cd = 2
+                             ELSE tgt.@cd = 3
+                        END
+            ;
+
+Start2 = {customer_address.*};
+
+attrV = SELECT tgt
+        FROM Start2:src- (ca_address_sk)->:tgt
+        WHERE src.ca_country == "United States" AND src.ca_state IN ("CO", "OH", "TX", "OR", "MN", "KY", "VA", "CA", "MS")
+        ACCUM CASE WHEN src.ca_state IN ("CO", "OH", "TX") THEN tgt.@ca = 1
+                   WHEN src.ca_state IN ("OR", "MN", "KY") THEN tgt.@ca = 2
+                   ELSE tgt.@ca = 3
+              END
+        ;
+
+Start = {date_dim.*};
+
+attrV = SELECT tgt
+        FROM Start:src- (d_date_sk)->:tgt
+        WHERE src.d_year == 2000
+                 ;
+
+tupleV = SELECT tgt
+         FROM attrV:src- (ss_sold_date_sk)->:tgt
+         WHERE tgt.outdegree("ss_store_sk") > 0 AND tgt.ss_quantity != -1
+               AND tgt.ss_sales_price >= 50.00 AND tgt.ss_sales_price <= 200.00
+                     AND tgt.ss_net_profit >= 0 AND tgt.ss_net_profit <= 25000
+         ;
+             
+tupleV = SELECT src
+         FROM tupleV:src- (ss_cdemo_sk)->:tgt
+         WHERE (tgt.@cd == 1 AND src.ss_sales_price >= 100.00 AND src.ss_sales_price <= 150.00) OR
+               (tgt.@cd == 2 AND src.ss_sales_price >= 50.00 AND src.ss_sales_price <= 100.00) OR
+               (tgt.@cd == 3 AND src.ss_sales_price >= 150.00 AND src.ss_sales_price <= 200.00)
+        ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (ss_addr_sk)->:tgt
+         WHERE (tgt.@ca == 1 AND src.ss_net_profit >= 0 AND src.ss_net_profit <= 2000) OR
+               (tgt.@ca == 2 AND src.ss_net_profit >= 150 AND src.ss_net_profit <= 3000) OR
+               (tgt.@ca == 3 AND src.ss_net_profit >= 50 AND src.ss_net_profit <= 25000)
+         ACCUM @@sum_quantity += src.ss_quantity
+         ;
+
+}
+
+INSTALL QUERY q48

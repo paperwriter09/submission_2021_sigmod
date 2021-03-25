@@ -1,0 +1,80 @@
+USE GRAPH tpcds
+
+DROP QUERY q6
+
+CREATE QUERY q6() FOR GRAPH tpcds {
+SumAccum<int> @cnt;
+SumAccum<int> @@null_cnt;
+AvgAccum @avg_price;
+
+OrAccum @i_filter;
+
+//Reduction
+
+Start2 = {item.*};
+
+    attrV (ANY) = SELECT tgt
+                  FROM Start2:src-(i_category)->:tgt
+                  WHERE src.i_current_price > -1000000.0 //src.i_current_price != -1000000.0
+                  ACCUM tgt.@avg_price += src.i_current_price
+                  ;
+
+   tupleV (ANY) = SELECT tgt
+                  FROM attrV:src- (i_category)->:tgt
+                  WHERE tgt.i_current_price > 1.2 * src.@avg_price
+                  ;
+
+    attrV  = SELECT tgt
+             FROM tupleV:src-(i_item_sk)->:tgt
+             ACCUM tgt.@i_filter = true
+             ;
+
+Start = {date_dim.*};
+
+
+    attrV  = SELECT tgt
+             FROM Start:src - (d_date_sk)->:tgt
+             WHERE src.d_year == 2001 AND src.d_moy == 1
+             ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (ss_sold_date_sk)->:tgt
+             ;
+    
+    tupleV = SELECT src
+             FROM tupleV:src - (ss_item_sk)->:tgt
+             WHERE tgt.@i_filter
+             ;
+
+//Collection
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(ss_customer_sk)->:tgt
+            ACCUM tgt.@cnt += 1
+            ;
+
+    tupleV = SELECT tgt
+            FROM attrV:src-(c_customer_sk)->:tgt
+            ACCUM tgt.@cnt = src.@cnt
+            POST-ACCUM src.@cnt = 0
+            ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(c_current_addr_sk)->:tgt
+            ACCUM tgt.@cnt += src.@cnt
+            ;
+
+    tupleV  = SELECT tgt
+              FROM attrV:src-(ca_address_sk)->:tgt
+              ACCUM IF tgt.ca_state == "NULL" THEN @@null_cnt += src.@cnt ELSE tgt.@cnt = src.@cnt END
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(ca_state)->:tgt
+            ACCUM tgt.@cnt += src.@cnt
+            HAVING tgt.@cnt >= 10
+            ;
+
+}
+
+INSTALL QUERY q6

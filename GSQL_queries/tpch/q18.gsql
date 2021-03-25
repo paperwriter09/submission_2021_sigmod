@@ -1,0 +1,44 @@
+USE GRAPH tpch
+
+DROP QUERY q18
+
+CREATE QUERY q18() FOR GRAPH tpch {
+SumAccum<string> @customerName;
+SumAccum<double> @sumQuantity;
+
+
+Start = {attribute_int.*};
+
+// Reduction
+
+    attrV = SELECT src
+            FROM Start:src - (L_ORDERKEY:e) -> :tgt
+            ACCUM src.@sumQuantity += tgt.L_QUANTITY
+            HAVING src.@sumQuantity > 300
+            ;
+
+    tupleV = SELECT tgt
+            FROM attrV:src - (O_ORDERKEY:e) -> :tgt
+            ACCUM tgt.@sumQuantity = src.@sumQuantity
+            ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (O_CUSTKEY:e) -> :tgt
+            ;
+
+// Collection
+    attrV = SELECT src
+            FROM attrV:src - (C_CUSTKEY:e) -> :tgt
+            ACCUM src.@customerName = tgt.C_NAME
+            ;
+
+    tupleV = SELECT src
+             FROM tupleV:src - (O_CUSTKEY:e) -> :tgt
+             ACCUM src.@customerName = tgt.@customerName
+             ;
+
+
+
+}
+
+INSTALL QUERY q18

@@ -1,0 +1,71 @@
+USE GRAPH tpcds
+
+DROP QUERY q56_0
+
+CREATE QUERY q56_0() FOR GRAPH tpcds {
+SumAccum<double> @total_sales;
+SetAccum<int> @@camap, @@imap;
+
+//Reduction
+Start2 = {customer_address.*};
+
+    Start2  = SELECT src
+              FROM Start2:src
+              WHERE src.ca_gmt_offset == -5
+              ACCUM @@camap += src.ca_address_sk
+             ;
+
+Start3 = {item.*};
+
+attrV (ANY)  = SELECT tgt
+               FROM Start3:src-(i_item_id)-> :tgt
+               WHERE src.i_color == "slate" or src.i_color == "blanched" or src.i_color == "burnished"
+         ;
+
+tupleV(ANY) = SELECT tgt
+              FROM attrV:src-(i_item_id)-> :tgt
+;
+
+tupleV = SELECT src
+         FROM tupleV:src
+         ACCUM @@imap += src.i_item_sk
+        ;
+
+Start = {date_dim.*};
+
+    attrV = SELECT tgt
+            FROM Start:src- (d_date_sk)->:tgt
+            WHERE src.d_year == 2001 and src.d_moy == 2
+                  ;
+
+   tuples = SELECT tgt
+            FROM attrV:src - (ss_sold_date_sk|cs_sold_date_sk|ws_sold_date_sk)->:tgt
+            WHERE (@@imap.contains(tgt.ss_item_sk) AND @@camap.contains(tgt.ss_addr_sk)) OR  
+                  (@@imap.contains(tgt.cs_item_sk) AND @@camap.contains(tgt.cs_bill_addr_sk)) OR
+                  (@@imap.contains(tgt.ws_item_sk) AND @@camap.contains(tgt.ws_bill_addr_sk))
+           ;
+
+//Collection
+
+attrV = SELECT tgt
+        FROM tuples:src - ((ss_item_sk|cs_item_sk|ws_item_sk):e) -> :tgt
+        WHERE src.ss_ext_sales_price > -1000000.0 OR src.cs_ext_sales_price > -1000000.0 OR src.ws_ext_sales_price > -1000000.0
+        ACCUM CASE e.type
+            WHEN "ss_item_sk" THEN tgt.@total_sales += src.ss_ext_sales_price
+            WHEN "cs_item_sk" THEN tgt.@total_sales += src.cs_ext_sales_price
+            WHEN "ws_item_sk" THEN tgt.@total_sales += src.ws_ext_sales_price
+        END;
+
+tupleV = SELECT tgt
+         FROM attrV:src - (i_item_sk) -> :tgt
+         ACCUM tgt.@total_sales = src.@total_sales
+         ;
+
+attrV = SELECT tgt
+         FROM tupleV:src - (i_item_id) -> :tgt
+         ACCUM tgt.@total_sales += src.@total_sales
+         ;
+
+
+}
+INSTALL QUERY q56_0

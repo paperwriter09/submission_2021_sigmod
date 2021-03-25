@@ -1,0 +1,65 @@
+USE GRAPH tpcds
+
+DROP QUERY q61_0
+
+CREATE QUERY q61_0() FOR GRAPH tpcds {
+SetAccum<int> @@imap, @@cmap, @@smap, @@pmap;
+SumAccum<double> @@promotions, @@total, @@promo_ration;
+
+Start2 = {item.*};
+
+    Start2 = SELECT src
+             FROM Start2:src
+             WHERE src.i_category == "Jewelry"
+             ACCUM @@imap += src.i_item_sk
+                  ;
+
+Start1 = {promotion.*};
+
+    Start1 = SELECT src
+             FROM Start1:src
+             WHERE src.p_channel_dmail == "Y" OR src.p_channel_email == "Y" OR src.p_channel_tv == "Y"
+             ACCUM @@pmap += src.p_promo_sk
+            ;
+
+Start3 = {sstore.*};
+
+    Start3 = SELECT src
+             FROM Start3:src
+             WHERE src.s_gmt_offset == -5
+             ACCUM @@smap += src.s_store_sk
+            ;
+
+Start4 = {customer_address.*};
+
+    attrV (ANY) = SELECT tgt
+                  FROM Start4:src-(ca_address_sk)->:tgt
+                  WHERE src.ca_gmt_offset == -5
+            ;
+
+    attrV  = SELECT src
+             FROM attrV:src- (c_current_addr_sk)->:tgt
+             ACCUM @@cmap += tgt.c_customer_sk
+             ;
+
+Start = {date_dim.*};
+
+    attrV = SELECT tgt
+            FROM Start:src- (d_date_sk)->:tgt
+            WHERE src.d_year == 1998 AND src.d_moy == 11
+            ;
+
+    attrV = SELECT src
+              FROM attrV:src- (ss_sold_date_sk)->:tgt
+              WHERE @@imap.contains(tgt.ss_item_sk) AND @@cmap.contains(tgt.ss_customer_sk) AND @@smap.contains(tgt.ss_store_sk)
+                    AND tgt.ss_ext_sales_price > -1000000.0
+              ACCUM @@total += tgt.ss_ext_sales_price
+                    ,CASE WHEN @@pmap.contains(tgt.ss_promo_sk) THEN  @@promotions += tgt.ss_ext_sales_price END
+             ;
+
+
+@@promo_ration = (@@promotions/@@total)*100;
+
+}
+
+INSTALL QUERY q61_0

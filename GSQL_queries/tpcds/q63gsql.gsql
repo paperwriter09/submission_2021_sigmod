@@ -1,0 +1,124 @@
+USE GRAPH tpcds
+
+DROP QUERY q63
+
+CREATE QUERY q63() FOR GRAPH tpcds {
+OrAccum @d_filter;
+SumAccum<int> @month;
+SumAccum<double> @sum_sales_1, @sum_sales_2, @sum_sales_3, @sum_sales_4, @sum_sales_5, @sum_sales_6,
+                 @sum_sales_7, @sum_sales_8, @sum_sales_9, @sum_sales_10, @sum_sales_11, @sum_sales_12;
+AvgAccum @avg_month_sales;
+
+Start2 = {item.*};
+
+attrV (ANY) = SELECT tgt
+              FROM Start2:src - (i_item_sk)->:tgt
+              WHERE ((src.i_category == "Books" OR src.i_category == "Children" OR src.i_category == "Electronics") AND
+              (src.i_class == "personal" OR src.i_class == "portable" OR src.i_class == "reference" OR src.i_class == "self-help") AND
+              (src.i_brand == "scholaramalgamalg #14" OR src.i_brand == "scholaramalgamalg #7" OR src.i_brand == "exportiunivamalg #9" OR src.i_brand == "scholaramalgamalg #9")) OR
+        
+              ((src.i_category == "Women" OR src.i_category == "Music" OR src.i_category == "Men") AND
+               (src.i_class == "accessories" OR src.i_class == "classical" OR src.i_class == "fragrances" OR src.i_class == "pants") AND
+               (src.i_brand == "amalgimporto #1" OR src.i_brand == "edu packscholar #1" OR src.i_brand == "exportiimporto #1" OR src.i_brand == "importoamalg #1"))
+              ;
+
+tupleV (ANY) = SELECT tgt
+         FROM attrV:src - (ss_item_sk)->:tgt
+         WHERE tgt.outdegree("ss_store_sk") > 0
+         ;
+
+Start = {date_dim.*};
+
+attrV = SELECT tgt
+        FROM Start:src - (d_date_sk)->:tgt
+        WHERE src.d_month_seq == 1200 OR src.d_month_seq == 1201 OR src.d_month_seq == 1202 OR src.d_month_seq == 1203 OR src.d_month_seq == 1204 OR src.d_month_seq == 1205 OR
+              src.d_month_seq == 1206 OR src.d_month_seq == 1207 OR src.d_month_seq == 1208 OR src.d_month_seq == 1209 OR src.d_month_seq == 1210 OR src.d_month_seq == 1211
+        ACCUM tgt.@d_filter = true, tgt.@month = src.d_moy
+        ;
+
+tupleV = SELECT src
+         FROM tupleV:src -(ss_sold_date_sk)->:tgt
+         WHERE tgt.@d_filter
+         ACCUM src.@month = tgt.@month
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src -(ss_item_sk)->:tgt
+        ACCUM CASE WHEN src.ss_sales_price > -1000000.0 THEN 
+                   CASE WHEN src.@month == 1 THEN tgt.@sum_sales_1 += src.ss_sales_price
+                        WHEN src.@month == 2 THEN tgt.@sum_sales_2 += src.ss_sales_price
+                        WHEN src.@month == 3 THEN tgt.@sum_sales_3 += src.ss_sales_price
+                        WHEN src.@month == 4 THEN tgt.@sum_sales_4 += src.ss_sales_price
+                        WHEN src.@month == 5 THEN tgt.@sum_sales_5 += src.ss_sales_price
+                        WHEN src.@month == 6 THEN tgt.@sum_sales_6 += src.ss_sales_price
+                        WHEN src.@month == 7 THEN tgt.@sum_sales_7 += src.ss_sales_price
+                        WHEN src.@month == 8 THEN tgt.@sum_sales_8 += src.ss_sales_price
+                        WHEN src.@month == 9 THEN tgt.@sum_sales_9 += src.ss_sales_price
+                        WHEN src.@month == 10 THEN tgt.@sum_sales_10 += src.ss_sales_price
+                        WHEN src.@month == 11 THEN tgt.@sum_sales_11 += src.ss_sales_price
+                        ELSE tgt.@sum_sales_12 += src.ss_sales_price
+                   END
+              END
+        ;
+
+tupleV = SELECT tgt
+        FROM attrV:src -(i_item_sk)->:tgt
+        ACCUM tgt.@sum_sales_1 = src.@sum_sales_1, tgt.@sum_sales_2 = src.@sum_sales_2, tgt.@sum_sales_3 = src.@sum_sales_3, tgt.@sum_sales_4 = src.@sum_sales_4,
+              tgt.@sum_sales_5 = src.@sum_sales_5, tgt.@sum_sales_6 = src.@sum_sales_6, tgt.@sum_sales_7 = src.@sum_sales_7, tgt.@sum_sales_8 = src.@sum_sales_8,
+              tgt.@sum_sales_9 = src.@sum_sales_9, tgt.@sum_sales_10 = src.@sum_sales_10, tgt.@sum_sales_11 = src.@sum_sales_11, tgt.@sum_sales_12 = src.@sum_sales_12
+        POST-ACCUM src.@sum_sales_1 = 0, src.@sum_sales_2 = 0, src.@sum_sales_3 = 0, src.@sum_sales_4 = 0, src.@sum_sales_5 = 0, src.@sum_sales_6 = 0,
+                   src.@sum_sales_7 = 0, src.@sum_sales_8 = 0, src.@sum_sales_9 = 0, src.@sum_sales_10 = 0, src.@sum_sales_11 = 0, src.@sum_sales_12 = 0
+        ;
+
+
+attr = SELECT tgt
+        FROM tupleV:src -(i_manager_id)->:tgt
+        ACCUM tgt.@sum_sales_1 += src.@sum_sales_1, tgt.@sum_sales_2 += src.@sum_sales_2, tgt.@sum_sales_3 += src.@sum_sales_3, tgt.@sum_sales_4 += src.@sum_sales_4,
+              tgt.@sum_sales_5 += src.@sum_sales_5, tgt.@sum_sales_6 += src.@sum_sales_6, tgt.@sum_sales_7 += src.@sum_sales_7, tgt.@sum_sales_8 += src.@sum_sales_8,
+              tgt.@sum_sales_9 += src.@sum_sales_9, tgt.@sum_sales_10 += src.@sum_sales_10, tgt.@sum_sales_11 += src.@sum_sales_11, tgt.@sum_sales_12 += src.@sum_sales_12
+        POST-ACCUM 
+               CASE WHEN tgt.@sum_sales_1 > 0 THEN tgt.@avg_month_sales += tgt.@sum_sales_1 END, 
+               CASE WHEN tgt.@sum_sales_2 > 0 THEN tgt.@avg_month_sales += tgt.@sum_sales_2 END,
+               CASE WHEN tgt.@sum_sales_3 > 0 THEN tgt.@avg_month_sales += tgt.@sum_sales_3 END,
+               CASE WHEN tgt.@sum_sales_4 > 0 THEN tgt.@avg_month_sales += tgt.@sum_sales_4 END,
+               CASE WHEN tgt.@sum_sales_5 > 0 THEN tgt.@avg_month_sales += tgt.@sum_sales_5 END,
+               CASE WHEN tgt.@sum_sales_6 > 0 THEN tgt.@avg_month_sales += tgt.@sum_sales_6 END,
+               CASE WHEN tgt.@sum_sales_7 > 0 THEN tgt.@avg_month_sales += tgt.@sum_sales_7 END,
+               CASE WHEN tgt.@sum_sales_8 > 0 THEN tgt.@avg_month_sales += tgt.@sum_sales_8 END,
+               CASE WHEN tgt.@sum_sales_9 > 0 THEN tgt.@avg_month_sales += tgt.@sum_sales_9 END,
+               CASE WHEN tgt.@sum_sales_10 > 0 THEN tgt.@avg_month_sales += tgt.@sum_sales_10 END,
+               CASE WHEN tgt.@sum_sales_11 > 0 THEN tgt.@avg_month_sales += tgt.@sum_sales_11 END,
+               CASE WHEN tgt.@sum_sales_12 > 0 THEN tgt.@avg_month_sales += tgt.@sum_sales_12 END
+        ; 
+
+attr = SELECT src
+       FROM attr:src
+       ACCUM CASE WHEN src.@sum_sales_1 > 0 AND NOT (abs(src.@sum_sales_1-src.@avg_month_sales)/src.@avg_month_sales) > 0.1
+                         THEN src.@sum_sales_1 = 0 END,
+             CASE WHEN src.@sum_sales_2 > 0 AND NOT (abs(src.@sum_sales_2-src.@avg_month_sales)/src.@avg_month_sales) > 0.1
+                         THEN src.@sum_sales_2 = 0 END,
+             CASE WHEN src.@sum_sales_3 > 0 AND NOT (abs(src.@sum_sales_3-src.@avg_month_sales)/src.@avg_month_sales) > 0.1
+                         THEN src.@sum_sales_3 = 0 END,
+             CASE WHEN src.@sum_sales_4 > 0 AND NOT (abs(src.@sum_sales_4-src.@avg_month_sales)/src.@avg_month_sales) > 0.1
+                         THEN src.@sum_sales_4 = 0 END,
+             CASE WHEN src.@sum_sales_5 > 0 AND NOT (abs(src.@sum_sales_5-src.@avg_month_sales)/src.@avg_month_sales) > 0.1
+                         THEN src.@sum_sales_5 = 0 END,
+             CASE WHEN src.@sum_sales_6 > 0 AND NOT (abs(src.@sum_sales_6-src.@avg_month_sales)/src.@avg_month_sales) > 0.1
+                         THEN src.@sum_sales_6 = 0 END,
+             CASE WHEN src.@sum_sales_7 > 0 AND NOT (abs(src.@sum_sales_7-src.@avg_month_sales)/src.@avg_month_sales) > 0.1
+                         THEN src.@sum_sales_7 = 0 END,
+             CASE WHEN src.@sum_sales_8 > 0 AND NOT (abs(src.@sum_sales_8-src.@avg_month_sales)/src.@avg_month_sales) > 0.1
+                         THEN src.@sum_sales_8 = 0 END,
+             CASE WHEN src.@sum_sales_9 > 0 AND NOT (abs(src.@sum_sales_9-src.@avg_month_sales)/src.@avg_month_sales) > 0.1
+                         THEN src.@sum_sales_9 = 0 END,
+             CASE WHEN src.@sum_sales_10 > 0 AND NOT (abs(src.@sum_sales_10-src.@avg_month_sales)/src.@avg_month_sales) > 0.1
+                         THEN src.@sum_sales_10 = 0 END,
+             CASE WHEN src.@sum_sales_11 > 0 AND NOT (abs(src.@sum_sales_11-src.@avg_month_sales)/src.@avg_month_sales) > 0.1
+                         THEN src.@sum_sales_11 = 0 END,
+             CASE WHEN src.@sum_sales_12 > 0 AND NOT (abs(src.@sum_sales_12-src.@avg_month_sales)/src.@avg_month_sales) > 0.1
+                         THEN src.@sum_sales_12 = 0 END
+       ;
+
+}
+
+INSTALL QUERY q63

@@ -1,0 +1,118 @@
+USE GRAPH tpcds
+
+DROP QUERY q85
+
+CREATE QUERY q85() FOR GRAPH tpcds {
+OrAccum @m_filter, @s_filter, @w_filter, @in_filter, @wi_filter, @la_filter;
+SumAccum<int> @qty;
+AvgAccum @avg_qty, @avg_cash, @avg_fee;
+
+//Reduction
+
+Start3 = {date_dim.*};
+attrV (ANY) = SELECT tgt
+              FROM Start3:src- (d_date_sk)->:tgt
+              WHERE src.d_year == 2000
+        ;
+
+tuple_ws= SELECT tgt
+          FROM attrV:src- (ws_sold_date_sk)->:tgt
+          WHERE tgt.outdegree("ws_web_page_sk") > 0 AND tgt.outdegree("ws_wr_order_item") > 0
+               AND tgt.ws_sales_price >= 50 AND tgt.ws_sales_price <= 200
+               AND tgt.ws_net_profit >= 50 AND tgt.ws_net_profit <= 300
+          ACCUM CASE WHEN tgt.ws_sales_price >= 100 AND tgt.ws_sales_price <= 150 THEN tgt.@m_filter = true END,
+              CASE WHEN tgt.ws_sales_price >= 50 AND tgt.ws_sales_price <= 100 THEN tgt.@s_filter = true END,
+              CASE WHEN tgt.ws_sales_price >= 150 AND tgt.ws_sales_price <= 200 THEN tgt.@w_filter = true END,
+              CASE WHEN tgt.ws_net_profit >= 100 AND tgt.ws_net_profit <= 200 THEN tgt.@in_filter = true END,
+              CASE WHEN tgt.ws_net_profit >= 150 AND tgt.ws_net_profit <= 300 THEN tgt.@wi_filter = true END,
+              CASE WHEN tgt.ws_net_profit >= 50 AND tgt.ws_net_profit <= 250 THEN tgt.@la_filter = true END
+        ;
+
+tupleV (ANY) = SELECT tgt
+               FROM tuple_ws:src- (ws_wr_order_item)->:tgt
+               WHERE tgt.outdegree("wr_reason_sk") > 0
+               ACCUM tgt.@m_filter = src.@m_filter,  tgt.@s_filter = src.@s_filter,  tgt.@w_filter = src.@w_filter,
+               tgt.@in_filter = src.@in_filter,  tgt.@wi_filter = src.@wi_filter,  tgt.@la_filter = src.@la_filter
+         ;
+
+//filter on customer demo
+
+attrV = SELECT tgt
+        FROM tupleV:src - (wr_refunded_cdemo_sk|wr_returning_cdemo_sk)->:tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (cd_demo_sk)->:tgt
+        WHERE (tgt.cd_marital_status == "M" AND tgt.cd_education_status == "Advanced Degree") OR
+               (tgt.cd_marital_status == "S" AND tgt.cd_education_status == "College") OR
+               (tgt.cd_marital_status == "W" AND tgt.cd_education_status == "2 yr Degree") 
+        ACCUM CASE WHEN tgt.cd_marital_status == "M" AND tgt.cd_education_status == "Advanced Degree" THEN src.@m_filter = true
+                   WHEN tgt.cd_marital_status == "S" AND tgt.cd_education_status == "College" THEN src.@s_filter = true
+                   ELSE src.@w_filter = true
+              END
+                    ;
+
+tupleV  =  SELECT src
+           FROM tupleV:src- (wr_refunded_cdemo_sk)->:tgt
+           WHERE (tgt.@m_filter AND src.@m_filter) OR (tgt.@s_filter AND src.@s_filter) OR (tgt.@w_filter AND src.@w_filter)
+           ;
+
+
+tupleV = SELECT src
+         FROM tupleV:src- (wr_returning_cdemo_sk)->:tgt
+         WHERE (tgt.@m_filter AND src.@m_filter) OR (tgt.@s_filter AND src.@s_filter) OR (tgt.@w_filter AND src.@w_filter)
+          ;
+
+
+// filter on customer_address
+
+attrV = SELECT tgt
+        FROM tupleV:src - (wr_refunded_addr_sk)->:tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (ca_address_sk)->:tgt
+        WHERE tgt.ca_country == "United States" AND
+              (tgt.ca_state == "IN" OR tgt.ca_state == "OH" OR tgt.ca_state == "NJ" OR
+               tgt.ca_state == "WI" OR tgt.ca_state == "CT" OR tgt.ca_state == "KY" OR
+               tgt.ca_state == "LA" OR tgt.ca_state == "IA" OR tgt.ca_state == "AR")
+        ACCUM CASE WHEN tgt.ca_state == "IN" OR tgt.ca_state == "OH" OR tgt.ca_state == "NJ" THEN src.@in_filter = true
+                   WHEN tgt.ca_state == "WI" OR tgt.ca_state == "CT" OR tgt.ca_state == "KY" THEN src.@wi_filter = true
+                   ELSE src.@la_filter = true
+              END
+        ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (wr_refunded_addr_sk)->:tgt
+         WHERE (src.@in_filter AND tgt.@in_filter) OR (src.@wi_filter AND tgt.@wi_filter) OR (src.@la_filter AND tgt.@la_filter)
+         ;
+
+tupleV = SELECT src
+         FROM tupleV:src - (ws_wr_order_item)-> :tgt
+         ACCUM CASE WHEN tgt.ws_quantity != -1 THEN src.@qty = tgt.ws_quantity END
+        ;
+
+// Collection
+
+attrV = SELECT tgt
+        FROM tupleV:src- (wr_reason_sk)->:tgt
+        ACCUM tgt.@avg_qty += src.@qty,
+              CASE WHEN src.wr_refunded_cash > -1000000.0 THEN tgt.@avg_cash += src.wr_refunded_cash END,
+              CASE WHEN src.wr_fee > -1000000.0 THEN tgt.@avg_fee += src.wr_fee END
+        ;
+
+tupleV = SELECT tgt
+         FROM attrV:src- (r_reason_sk)->:tgt
+         ACCUM tgt.@avg_qty = src.@avg_qty, tgt.@avg_cash = src.@avg_cash, tgt.@avg_fee = src.@avg_fee
+         ;
+
+
+attrV = SELECT tgt
+        FROM tupleV:src- (r_reason_desc)->:tgt
+        ACCUM tgt.@avg_qty += src.@avg_qty, tgt.@avg_cash += src.@avg_cash, tgt.@avg_fee += src.@avg_fee
+        ;
+
+
+}
+
+INSTALL QUERY q85

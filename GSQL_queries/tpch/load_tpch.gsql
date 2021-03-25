@@ -1,0 +1,168 @@
+USE GRAPH tpch
+
+CREATE LOADING JOB load_tpch FOR GRAPH tpch {
+    DEFINE FILENAME file1="/home/ubuntu/2.17.3/dbgen/lineitem.tbl";
+    DEFINE FILENAME file2="/home/ubuntu/2.17.3/dbgen/orders.tbl";
+    DEFINE FILENAME file3="/home/ubuntu/2.17.3/dbgen/nation.tbl";
+    DEFINE FILENAME file4="/home/ubuntu/2.17.3/dbgen/region.tbl";
+    DEFINE FILENAME file5="/home/ubuntu/2.17.3/dbgen/part.tbl";
+    DEFINE FILENAME file6="/home/ubuntu/2.17.3/dbgen/supplier.tbl";
+    DEFINE FILENAME file7="/home/ubuntu/2.17.3/dbgen/partsupp.tbl";
+    DEFINE FILENAME file8="/home/ubuntu/2.17.3/dbgen/customer.tbl";
+
+    LOAD file1
+        TO VERTEX lineitem VALUES ($0, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15),
+        TO VERTEX attribute_int VALUES ($0),
+        TO VERTEX attribute_int VALUES ($1),
+        TO VERTEX attribute_int VALUES ($2),
+        TO VERTEX attribute_int VALUES ($3),
+        //TO VERTEX attribute_dbl VALUES ($4),
+        //TO VERTEX attribute_dbl VALUES ($5),
+        //TO VERTEX attribute_dbl VALUES ($6),
+        //TO VERTEX attribute_dbl VALUES ($7),
+        TO VERTEX attribute_str VALUES ($8),
+        TO VERTEX attribute_str VALUES ($9),
+        TO VERTEX attribute_date VALUES ($10),
+        TO VERTEX attribute_date VALUES ($11),
+        TO VERTEX attribute_date VALUES ($12),
+        //TO VERTEX attribute_str VALUES ($13),
+        TO VERTEX attribute_str VALUES ($14),
+        //TO VERTEX attribute_str VALUES ($15),
+        TO EDGE L_ORDERKEY VALUES (($0,$3) lineitem, $0 attribute_int),
+        TO EDGE L_PARTKEY VALUES (($0,$3) lineitem, $1 attribute_int),
+        TO EDGE L_SUPPKEY VALUES (($0,$3) lineitem, $2 attribute_int),
+        TO EDGE L_LINENUMBER VALUES (($0,$3) lineitem, $3 attribute_int),
+        //TO EDGE L_QUANTITY VALUES (($0,$3) lineitem, $4 attribute_dbl),
+        //TO EDGE L_EXTENDEDPRICE VALUES (($0,$3) lineitem, $5 attribute_dbl),
+        //TO EDGE L_DISCOUNT VALUES (($0,$3) lineitem, $6 attribute_dbl),
+        //TO EDGE L_TAX VALUES (($0,$3) lineitem, $7 attribute_dbl),
+        TO EDGE L_RETURNFLAG VALUES (($0,$3) lineitem, $8 attribute_str),
+        TO EDGE L_LINESTATUS VALUES (($0,$3) lineitem, $9 attribute_str),
+        TO EDGE L_SHIPDATE VALUES (($0,$3) lineitem, $10 attribute_date),
+        TO EDGE L_COMMITDATE VALUES (($0,$3) lineitem, $11 attribute_date),
+        TO EDGE L_RECEIPTDATE VALUES (($0,$3) lineitem, $12 attribute_date),
+        //TO EDGE L_SHIPINSTRUCT VALUES (($0,$3) lineitem, $13 attribute_str),
+        TO EDGE L_SHIPMODE VALUES (($0,$3) lineitem, $14 attribute_str)
+        //TO EDGE L_COMMENT VALUES (($0,$3) lineitem, $15 attribute_str)
+    USING HEADER="false", SEPARATOR="|", EOL="\n";
+
+    LOAD file2
+        TO VERTEX orders VALUES ($0, $1, $2, $3, $4, $5, $6, $7, $8),
+        TO VERTEX attribute_int VALUES ($0),
+        TO VERTEX attribute_int VALUES ($1),
+        TO VERTEX attribute_str VALUES ($2),
+        //TO VERTEX attribute_dbl VALUES ($3),
+        TO VERTEX attribute_date VALUES ($4),
+        TO VERTEX attribute_str VALUES ($5),
+        //TO VERTEX attribute_str VALUES ($6),
+        TO VERTEX attribute_int VALUES ($7),
+        //TO VERTEX attribute_str VALUES ($8),
+        TO EDGE O_ORDERKEY VALUES ($0 orders, $0 attribute_int),
+        TO EDGE O_CUSTKEY VALUES ($0 orders, $1 attribute_int),
+        TO EDGE O_ORDERSTATUS VALUES ($0 orders, $2 attribute_str),
+        //TO EDGE O_TOTALPRICE VALUES ($0 orders, $3 attribute_dbl),
+        TO EDGE O_ORDERDATE VALUES ($0 orders, $4 attribute_date),
+        TO EDGE O_ORDERPRIORITY VALUES ($0 orders, $5 attribute_str),
+        //TO EDGE O_CLERK VALUES ($0 orders, $6 attribute_str),
+        TO EDGE O_SHIPPRIORITY VALUES ($0 orders, $7 attribute_int)
+        //TO EDGE O_COMMENT VALUES ($0 orders, $8 attribute_str)
+    USING HEADER="false", SEPARATOR="|", EOL="\n";
+
+    LOAD file3
+        TO VERTEX nation VALUES ($0, $1, $2, $3),
+        TO VERTEX attribute_int VALUES ($0),
+        TO VERTEX attribute_str VALUES ($1),
+        TO VERTEX attribute_int VALUES ($2),
+        //TO VERTEX attribute_str VALUES ($3),
+        TO EDGE N_NATIONKEY VALUES ($0 nation, $0 attribute_int),
+        TO EDGE N_NAME VALUES ($0 nation, $1 attribute_str),
+        TO EDGE N_REGIONKEY VALUES ($0 nation, $2 attribute_int)
+        //TO EDGE N_COMMENT VALUES ($0 nation, $3 attribute_str)
+    USING HEADER="false", SEPARATOR="|", EOL="\n";
+
+    LOAD file4
+        TO VERTEX region VALUES ($0, $1, $2),
+        TO VERTEX attribute_int VALUES ($0),
+        TO VERTEX attribute_str VALUES ($1),
+        //TO VERTEX attribute_str VALUES ($2),
+        TO EDGE R_REGIONKEY VALUES ($0 region, $0 attribute_int),
+        TO EDGE R_NAME VALUES ($0 region, $1 attribute_str)
+        //TO EDGE R_COMMENT VALUES ($0 region, $2 attribute_str)
+    USING HEADER="false", SEPARATOR="|", EOL="\n";
+
+    LOAD file5
+        TO VERTEX part VALUES ($0, $1, $2, $3, $4, $5, $6, $7, $8),
+        TO VERTEX attribute_int VALUES ($0),
+        //TO VERTEX attribute_str VALUES ($1),
+        //TO VERTEX attribute_str VALUES ($2),
+        TO VERTEX attribute_str VALUES ($3),
+        TO VERTEX attribute_str VALUES ($4),
+        TO VERTEX attribute_int VALUES ($5),
+        TO VERTEX attribute_str VALUES ($6),
+        //TO VERTEX attribute_dbl VALUES ($7),
+        //TO VERTEX attribute_str VALUES ($8),
+        TO EDGE P_PARTKEY VALUES ($0 part, $0 attribute_int),
+        //TO EDGE P_NAME VALUES ($0 part, $1 attribute_str),
+        //TO EDGE P_MFGR VALUES ($0 part, $2 attribute_str),
+        TO EDGE P_BRAND VALUES ($0 part, $3 attribute_str),
+        TO EDGE P_TYPE VALUES ($0 part, $4 attribute_str),
+        TO EDGE P_SIZE VALUES ($0 part, $5 attribute_int),
+        TO EDGE P_CONTAINER VALUES ($0 part, $6 attribute_str)
+        //TO EDGE P_RETAILPRICE VALUES ($0 part, $7 attribute_dbl),
+        //TO EDGE P_COMMENT VALUES ($0 part, $8 attribute_str)
+    USING HEADER="false", SEPARATOR="|", EOL="\n";
+
+    LOAD file6
+        TO VERTEX supplier VALUES ($0, $1, $2, $3, $4, $5, $6),
+        TO VERTEX attribute_int VALUES ($0),
+        TO VERTEX attribute_str VALUES ($1),
+        //TO VERTEX attribute_str VALUES ($2),
+        TO VERTEX attribute_int VALUES ($3),
+        //TO VERTEX attribute_str VALUES ($4),
+        //TO VERTEX attribute_dbl VALUES ($5),
+        //TO VERTEX attribute_str VALUES ($6),
+        TO EDGE S_SUPPKEY VALUES ($0 supplier, $0 attribute_int),
+        TO EDGE S_NAME VALUES ($0 supplier, $1 attribute_str),
+        //TO EDGE S_ADDRESS VALUES ($0 supplier, $2 attribute_str),
+        TO EDGE S_NATIONKEY VALUES ($0 supplier, $3 attribute_int)
+        //TO EDGE S_PHONE VALUES ($0 supplier, $4 attribute_str)
+        //TO EDGE S_ACCTBAL VALUES ($0 supplier, $5 attribute_dbl),
+        //TO EDGE S_COMMENT VALUES ($0 supplier, $6 attribute_str)
+    USING HEADER="false", SEPARATOR="|", EOL="\n";
+
+    LOAD file7
+        TO VERTEX partsupp VALUES ($0, $1, $2, $3, $4),
+        TO VERTEX attribute_int VALUES ($0),
+        TO VERTEX attribute_int VALUES ($1),
+        //TO VERTEX attribute_int VALUES ($2),
+        //TO VERTEX attribute_dbl VALUES ($3),
+        //TO VERTEX attribute_str VALUES ($4),
+        TO EDGE PS_PARTKEY VALUES (($0,$1) partsupp, $0 attribute_int),
+        TO EDGE PS_SUPPKEY VALUES (($0,$1) partsupp, $1 attribute_int)
+        //TO EDGE PS_AVAILQTY VALUES (($0,$1) partsupp, $2 attribute_int),
+        //TO EDGE PS_SUPPLYCOST VALUES (($0,$1) partsupp, $3 attribute_dbl),
+        //TO EDGE PS_COMMENT VALUES (($0,$1) partsupp, $4 attribute_str)
+    USING HEADER="false", SEPARATOR="|", EOL="\n";
+
+    LOAD file8
+        TO VERTEX customer VALUES ($0, $1, $2, $3, $4, $5, $6, $7),
+        TO VERTEX attribute_int VALUES ($0),
+        //TO VERTEX attribute_str VALUES ($1),
+        //TO VERTEX attribute_str VALUES ($2),
+        TO VERTEX attribute_int VALUES ($3),
+        //TO VERTEX attribute_str VALUES ($4),
+        //TO VERTEX attribute_dbl VALUES ($5),
+        TO VERTEX attribute_str VALUES ($6),
+        //TO VERTEX attribute_str VALUES ($7),
+        TO EDGE C_CUSTKEY VALUES ($0 customer, $0 attribute_int),
+        //TO EDGE C_NAME VALUES ($0 customer, $1 attribute_str),
+        //TO EDGE C_ADDRESS VALUES ($0 customer, $2 attribute_str),
+        TO EDGE C_NATIONKEY VALUES ($0 customer, $3 attribute_int),
+        //TO EDGE C_PHONE VALUES ($0 customer, $4 attribute_str),
+        //TO EDGE C_ACCTBAL VALUES ($0 customer, $5 attribute_dbl),
+        TO EDGE C_MKTSEGMENT VALUES ($0 customer, $6 attribute_str)
+        //TO EDGE C_COMMENT VALUES ($0 customer, $7 attribute_str)
+    USING HEADER="false", SEPARATOR="|", EOL="\n";
+}
+
+RUN LOADING JOB load_tpch

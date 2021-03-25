@@ -1,0 +1,38 @@
+USE GRAPH tpch
+
+DROP QUERY q15
+
+CREATE DISTRIBUTED QUERY q15() FOR GRAPH tpch {
+SumAccum<double> @totalRevenue;
+MaxAccum<double> @@maxTotalRevenue;
+
+Start = {attribute_date.*};
+
+
+// Reduction
+    Start = SELECT src
+            FROM Start:src
+            WHERE src.id >= to_datetime("1996-01-01") AND src.id < to_datetime("1996-04-01")
+            ;
+
+    tupleV = SELECT tgt
+             FROM Start:src - (L_SHIPDATE) -> :tgt
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (L_SUPPKEY) -> :tgt
+            ACCUM tgt.@totalRevenue += src.L_EXTENDEDPRICE * (1 - src.L_DISCOUNT)
+            POST-ACCUM @@maxTotalRevenue += tgt.@totalRevenue
+            ;
+
+// Collection
+    tupleV = SELECT tgt
+             FROM attrV:src - (S_SUPPKEY) -> :tgt
+             WHERE src.@totalRevenue == @@maxTotalRevenue //abs((@@maxTotalRevenue) - (src.@totalRevenue)) < 0.0001
+             ACCUM tgt.@totalRevenue = src.@totalRevenue
+             ;
+    
+
+}
+
+INSTALL QUERY q15

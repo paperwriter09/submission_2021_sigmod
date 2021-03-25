@@ -1,0 +1,65 @@
+USE GRAPH tpcds
+
+DROP QUERY q42
+
+CREATE QUERY q42() FOR GRAPH tpcds {
+SumAccum<int> @@d_year;
+SumAccum<double> @partial_sum;
+SumAccum<int> @categid;
+OrAccum @d_filter;
+
+//Reduction
+@@d_year = 2000;
+
+Start2 = {date_dim.*};
+
+    Start2  = SELECT src
+              FROM Start2:src-(d_date_sk)->:tgt
+              WHERE src.d_moy == 11 and src.d_year ==  2000
+              ACCUM tgt.@d_filter = true
+                  ;
+
+Start = {item.*};
+
+    attrV (ANY) = SELECT tgt
+            FROM Start:src- (i_item_sk)-> :tgt
+            WHERE src.i_manager_id == 1
+            ;
+
+   tupleV = SELECT tgt
+            FROM attrV:src - (ss_item_sk)-> :tgt
+            ;
+
+   tupleV = SELECT src
+            FROM tupleV:src - (ss_sold_date_sk)-> :tgt
+            WHERE tgt.@d_filter
+            ;
+
+//Collection
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(ss_item_sk)->:tgt
+            ACCUM CASE WHEN src.ss_ext_sales_price > -1000000.0 
+                       THEN tgt.@partial_sum += src.ss_ext_sales_price
+            END
+            ;
+
+    tupleV = SELECT tgt
+            FROM attrV:src-(i_item_sk)->:tgt
+            ACCUM tgt.@partial_sum = src.@partial_sum
+            ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(i_category)->:tgt
+            ACCUM tgt.@partial_sum += src.@partial_sum, tgt.@categid = src.i_category_id
+            ;
+    
+
+
+  // Output
+   //PRINT @@d_year, attrV.@categid, attrV.id, attrV.@partial_sum;
+  
+
+}
+
+INSTALL QUERY q42

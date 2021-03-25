@@ -1,0 +1,138 @@
+USE GRAPH tpcds
+
+DROP QUERY q18
+
+CREATE QUERY q18() FOR GRAPH tpcds {
+OrAccum @d_filter, @c_filter;
+
+SumAccum<string> @country, @state, @county, @item;
+AvgAccum @agg1, @agg2, @agg3, @agg4, @agg5, @agg6, @agg7, 
+         @@agg_1, @@agg_2, @@agg_3, @@agg_4, @@agg_5, @@agg_6, @@agg_7; 
+GroupByAccum<string item, string country, string state, string county, AvgAccum agg1, AvgAccum agg2, AvgAccum agg3, AvgAccum agg4,
+                                                                      AvgAccum agg5, AvgAccum agg6, AvgAccum agg7> @@result4;
+
+GroupByAccum<string item, string country, AvgAccum agg1, AvgAccum agg2, AvgAccum agg3, AvgAccum agg4, AvgAccum agg5, AvgAccum agg6, AvgAccum agg7> @@result2;
+GroupByAccum<string item, string country, string state, AvgAccum agg1, AvgAccum agg2, AvgAccum agg3, AvgAccum agg4,
+                                                                      AvgAccum agg5, AvgAccum agg6, AvgAccum agg7> @@result3;
+
+GroupByAccum<string item, AvgAccum agg1, AvgAccum agg2, AvgAccum agg3, AvgAccum agg4, AvgAccum agg5, AvgAccum agg6, AvgAccum agg7> @@result1;
+
+
+//Reduction
+
+Start = {date_dim.*};
+
+Start = SELECT src
+	      FROM Start:src- (d_date_sk)->:tgt
+        WHERE src.d_year == 2001 
+	      ACCUM tgt.@d_filter = true
+        ;
+
+Start3 = {customer_address.*};
+
+attrV = SELECT tgt
+        FROM Start3:src-(ca_address_sk)->:tgt
+        WHERE src.ca_state IN ("ND","WI","AL","NC","OK","MS","TN")
+        ACCUM tgt.@country = src.ca_country, tgt.@state = src.ca_state, tgt.@county = src.ca_county
+       ;
+
+
+tupleV = SELECT tgt
+         FROM attrV:src- (c_current_addr_sk)->:tgt
+         WHERE tgt.outdegree("c_current_cdemo_sk") > 0 AND tgt.c_birth_month IN (9,5,12,4,1,10)
+         ACCUM tgt.@country = src.@country, tgt.@state = src.@state, tgt.@county = src.@county
+         POST-ACCUM src.@country = "", src.@state = "", src.@county = ""
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src-(c_customer_sk)->:tgt
+        ACCUM tgt.@c_filter = true,
+               tgt.@country = src.@country, tgt.@state = src.@state, tgt.@county = src.@county
+         ;
+
+Start2 = {customer_demographics.*};
+
+attrV = SELECT tgt
+        FROM Start2:src-(cd_demo_sk)->:tgt
+        WHERE src.cd_gender == "M" AND src.cd_education_status == "College"
+    ;
+
+tupleV = SELECT tgt
+         FROM attrV:src- (cs_bill_cdemo_sk)->:tgt
+    ;
+
+
+tupleV = SELECT src
+         FROM tupleV:src- (cs_bill_customer_sk)->:tgt
+         WHERE tgt.@c_filter
+         ACCUM src.@country = tgt.@country, src.@state = tgt.@state, src.@county = tgt.@county
+          ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (cs_sold_date_sk)->:tgt
+         WHERE tgt.@d_filter
+         ;
+
+//Collection
+attrV = SELECT tgt
+        FROM tupleV:src- (cs_bill_cdemo_sk)->:tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src-(cd_demo_sk)->:tgt
+        ACCUM CASE WHEN tgt.cd_dep_count > 0 THEN src.@agg7 += tgt.cd_dep_count END
+        ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (cs_bill_customer_sk)->:tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src-(c_customer_sk)->:tgt
+        ACCUM CASE WHEN tgt.c_birth_year != -1 THEN src.@agg6 += tgt.c_birth_year END
+        ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (cs_bill_customer_sk)->:tgt
+         ACCUM src.@agg6 = tgt.@agg6
+          ;
+
+
+tupleV = SELECT src
+         FROM tupleV:src- (cs_bill_cdemo_sk)->:tgt
+         ACCUM src.@agg7 = tgt.@agg7
+         POST-ACCUM
+              CASE WHEN src.cs_quantity != -1 THEN src.@agg1 += src.cs_quantity END,
+              CASE WHEN src.cs_list_price != -1000000.0 THEN src.@agg2 += src.cs_list_price END,
+              CASE WHEN src.cs_coupon_amt != -1000000.0 THEN src.@agg3 += src.cs_coupon_amt END,
+              CASE WHEN src.cs_sales_price != -1000000.0 THEN src.@agg4 += src.cs_sales_price END,
+              CASE WHEN src.cs_net_profit != -1000000.0 THEN src.@agg5 += src.cs_net_profit END
+       ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (cs_item_sk)->:tgt
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (i_item_sk)->:tgt
+        ACCUM src.@item = tgt.i_item_id
+        ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (cs_item_sk)->:tgt
+        ACCUM @@result4 += (tgt.@item, src.@country, src.@state, src.@county -> src.@agg1, src.@agg2, src.@agg3, src.@agg4, src.@agg5, src.@agg6, src.@agg7)
+              ;
+
+FOREACH(k1,k2,k3,k4, v1,v2,v3,v4,v5,v6,v7) IN @@result4 DO
+  @@result1 += (k1 -> v1,v2,v3,v4,v5,v6,v7);
+  @@result2 += (k1, k2  -> v1,v2,v3,v4,v5,v6,v7); 
+  @@result3 += (k1, k2, k3 -> v1,v2,v3,v4,v5,v6,v7);
+  @@agg_1 += v1; @@agg_2 += v2; @@agg_3 += v3; @@agg_4 += v4; @@agg_5 += v5;@@agg_6 += v6; @@agg_7 += v7;
+END;
+
+@@result4 += ("NULL_","NULL_","NULL_","NULL_" -> @@agg_1, @@agg_2, @@agg_3, @@agg_4, @@agg_5, @@agg_6, @@agg_7);
+
+}
+
+
+INSTALL QUERY q18

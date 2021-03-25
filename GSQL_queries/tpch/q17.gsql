@@ -1,0 +1,40 @@
+USE GRAPH tpch
+
+DROP QUERY q17
+
+CREATE QUERY q17() FOR GRAPH tpch {
+SumAccum<double> @@sumPrice;
+double avgYearly;
+AvgAccum @avgQuantity;
+
+Start = {part.*};
+
+// Reduction
+    Start = SELECT src
+            FROM Start:src
+            WHERE src.P_BRAND == "Brand#23" AND src.P_CONTAINER == "MED BOX"
+            ;
+
+    attrV = SELECT tgt
+            FROM Start:src - (P_PARTKEY:e) -> :tgt
+            ;
+
+    attrV = SELECT src
+            FROM attrV:src - (L_PARTKEY:e) -> :tgt
+            ACCUM src.@avgQuantity += tgt.L_QUANTITY
+            ;
+
+// Collection
+    attrV = SELECT src
+            FROM attrV:src - (L_PARTKEY:e) -> :tgt
+            WHERE tgt.L_QUANTITY < 0.2 * src.@avgQuantity
+            ACCUM @@sumPrice += tgt.L_EXTENDEDPRICE
+            ;
+
+    
+avgYearly = @@sumPrice/7.0;
+
+
+}
+
+INSTALL QUERY q17

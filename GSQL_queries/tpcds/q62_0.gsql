@@ -1,0 +1,47 @@
+USE GRAPH tpcds
+
+DROP QUERY q62_0
+
+CREATE DISTRIBUTED QUERY q62_0() FOR GRAPH tpcds {
+MapAccum<int, string> @@sm, @@wh, @@web;
+
+GroupByAccum<string wh, string sm, string web, SumAccum<int> days_30, SumAccum<int> days_31_60, SumAccum<int> days_61_90, SumAccum<int> days_91_120, SumAccum<int> days_120> @@result; 
+
+//Reduction
+Start = {ship_mode.*, warehouse.*, web_site.*};
+
+Start = SELECT src
+        FROM Start:src
+        ACCUM CASE src.type
+               WHEN "ship_mode" THEN @@sm += (src.sm_ship_mode_sk -> src.sm_type)
+               WHEN "warehouse" THEN @@wh += (src.w_warehouse_sk -> src.w_warehouse_name)
+               ELSE @@web += (src.web_site_sk -> src.web_name)
+             END
+        ;
+
+Start2 = {date_dim.*};
+
+attrV = SELECT tgt
+              FROM Start2:src - (d_date_sk)->:tgt
+              WHERE src.d_month_seq >= 1200 AND src.d_month_seq <= 1211
+              ;
+
+attrV = SELECT src
+           FROM attrV:src - (ws_ship_date_sk)->:tgt
+           WHERE tgt.ws_sold_date_sk > 0 AND tgt.outdegree("ws_ship_mode_sk") > 0 AND tgt.outdegree("ws_web_site_sk") > 0 AND tgt.outdegree("ws_warehouse_sk") > 0
+           ACCUM CASE WHEN (tgt.ws_ship_date_sk - tgt.ws_sold_date_sk) <= 30
+                      THEN @@result += (@@wh.get(tgt.ws_warehouse_sk), @@sm.get(tgt.ws_ship_mode_sk), @@web.get(tgt.ws_web_site_sk) -> 1, 0, 0, 0, 0)
+                      WHEN (tgt.ws_ship_date_sk - tgt.ws_sold_date_sk) > 30 AND (tgt.ws_ship_date_sk - tgt.ws_sold_date_sk) <= 60
+                                                                             THEN @@result += (@@wh.get(tgt.ws_warehouse_sk), @@sm.get(tgt.ws_ship_mode_sk), @@web.get(tgt.ws_web_site_sk) -> 0, 1, 0, 0, 0)
+                      WHEN (tgt.ws_ship_date_sk - tgt.ws_sold_date_sk) > 60 AND (tgt.ws_ship_date_sk - tgt.ws_sold_date_sk) <= 90
+                                                                             THEN @@result += (@@wh.get(tgt.ws_warehouse_sk), @@sm.get(tgt.ws_ship_mode_sk), @@web.get(tgt.ws_web_site_sk) -> 0, 0, 1, 0, 0)
+                      WHEN (tgt.ws_ship_date_sk - tgt.ws_sold_date_sk) > 90 AND (tgt.ws_ship_date_sk - tgt.ws_sold_date_sk) <= 120
+                                                                             THEN @@result += (@@wh.get(tgt.ws_warehouse_sk), @@sm.get(tgt.ws_ship_mode_sk), @@web.get(tgt.ws_web_site_sk) -> 0, 0, 0, 1, 0)
+                      ELSE @@result += (@@wh.get(tgt.ws_warehouse_sk), @@sm.get(tgt.ws_ship_mode_sk), @@web.get(tgt.ws_web_site_sk) -> 0, 0, 0, 0, 1)
+                END
+              ;
+
+
+}
+
+INSTALL QUERY q62_0

@@ -1,0 +1,97 @@
+USE GRAPH tpcds
+
+DROP QUERY q91_0
+
+CREATE QUERY q91_0() FOR GRAPH tpcds {
+typedef Tuple<marital_status string, edu_status string> cdTuple;
+SumAccum<string> @marital;
+SumAccum<string> @edu;
+MapAccum<cdTuple, SumAccum<double>> @return_loss;
+OrAccum @d_filter;
+SetAccum<int> @@hdmap, @@camap;
+
+Start2 = {household_demographics.*};
+
+    Start2 = SELECT src
+            FROM Start2:src
+            WHERE src.hd_buy_potential LIKE "Unknown%"
+            ACCUM @@hdmap += src.hd_demo_sk
+            ;
+
+Start3 = {customer_address.*};
+
+    Start2 = SELECT src
+            FROM Start3:src
+            WHERE src.ca_gmt_offset == -7
+            ACCUM @@camap += src.ca_address_sk
+            ;
+
+Start = {date_dim.*};
+
+//Reduction
+
+    attrV (ANY) = SELECT tgt
+                  FROM Start:src - (d_date_sk)->:tgt
+                  WHERE src.d_year == 1998 AND src.d_moy == 11
+                  ;
+
+    tupleV (ANY) = SELECT tgt
+                   FROM attrV:src - (cr_returned_date_sk)->:tgt
+                   ACCUM tgt.@d_filter = true
+                   ;
+
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(cr_returning_customer_sk)->:tgt
+            ;
+
+   tupleV = SELECT tgt
+            FROM attrV:src- (c_customer_sk)->:tgt
+            WHERE @@hdmap.contains(tgt.c_current_hdemo_sk) AND @@camap.contains(tgt.c_current_addr_sk)
+           ;
+
+    attrV  = SELECT tgt
+             FROM tupleV:src-(c_current_cdemo_sk)->:tgt
+             ;
+
+    attrV = SELECT src
+            FROM attrV:src-(cd_demo_sk)->:tgt
+            WHERE (tgt.cd_marital_status == "M" AND tgt.cd_education_status == "Unknown") OR (tgt.cd_marital_status == "W" AND tgt.cd_education_status == "Advanced Degree")
+            ACCUM src.@marital = tgt.cd_marital_status, src.@edu = tgt.cd_education_status
+            ;
+
+//Collection
+
+   tupleV = SELECT src
+            FROM tupleV:src-(c_current_cdemo_sk)->:tgt
+            WHERE tgt.@marital != "" AND tgt.@edu != ""
+            ACCUM src.@marital = tgt.@marital, src.@edu = tgt.@edu
+            ;
+
+    
+    attrV  = SELECT tgt
+             FROM tupleV:src-(c_customer_sk)->:tgt
+             ACCUM tgt.@marital = src.@marital, tgt.@edu = src.@edu
+             ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src-(cr_returning_customer_sk)->:tgt
+             WHERE tgt.@d_filter
+             ACCUM tgt.@marital = src.@marital, tgt.@edu = src.@edu
+             ; 
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(cr_call_center_sk)->:tgt
+            ACCUM CASE WHEN src.cr_net_loss > -1000000.0 
+                  THEN tgt.@return_loss += (cdTuple(src.@marital,src.@edu) -> src.cr_net_loss)
+            END
+            ;
+
+    tupleV = SELECT tgt
+            FROM attrV:src-(cc_call_center_sk)->:tgt
+            ACCUM tgt.@return_loss = src.@return_loss
+            ;
+
+}
+
+INSTALL QUERY q91_0

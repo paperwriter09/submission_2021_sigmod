@@ -1,0 +1,44 @@
+USE GRAPH tpch
+
+DROP QUERY q4
+
+CREATE QUERY q4() FOR GRAPH tpch {
+SumAccum<int> @result;
+
+
+Start = {attribute_date.*};
+
+// Reduction
+
+    Start = SELECT src
+            FROM Start:src
+            WHERE src.id >= to_datetime("1993-07-01") AND src.id < to_datetime("1993-10-01")
+            ;
+
+    tupleV = SELECT tgt
+             FROM Start:src - (O_ORDERDATE) -> :tgt
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (O_ORDERKEY) -> :tgt
+            ;
+
+    attrV = SELECT src
+            FROM attrV:src - (L_ORDERKEY) -> :tgt
+            WHERE tgt.L_COMMITDATE < tgt.L_RECEIPTDATE
+            ;
+
+// Collection
+    tupleV = SELECT tgt
+             FROM attrV:src - (O_ORDERKEY) -> :tgt
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (O_ORDERPRIORITY) -> :tgt
+            ACCUM tgt.@result += 1
+            ;
+
+
+}
+
+INSTALL QUERY q4

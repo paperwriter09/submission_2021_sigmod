@@ -1,0 +1,77 @@
+USE GRAPH tpcds
+
+DROP QUERY q89
+
+CREATE QUERY q89() FOR GRAPH tpcds {
+SumAccum<string> @item, @sstore;
+SumAccum<int> @month;
+GroupByAccum<string item, string sstore, int month, SumAccum<double> sales> @@sum_sales;
+GroupByAccum<string item, string sstore, SumAccum<double> sales, SumAccum<int> cnt> @@avg_sales;
+GroupByAccum<string item, string sstore, int month, SumAccum<double> sales, AvgAccum avg_sales> @@result;
+
+Start1 = {sstore.*};
+
+Start1 =  SELECT src
+          FROM Start1:src- (s_store_sk)->:tgt
+          ACCUM tgt.@sstore = src.s_store_name + "," + src.s_company_name
+          ;
+
+Start = {date_dim.*};
+
+Start =  SELECT src
+	  FROM Start:src- (d_date_sk)->:tgt
+	  WHERE src.d_year == 1999 
+	  ACCUM tgt.@month = src.d_moy
+          ;
+
+Start2 = {item.*};
+
+attrV = SELECT tgt
+        FROM Start2:src-(i_item_sk)->:tgt
+        WHERE ( (src.i_category == "Books" OR src.i_category == "Electronics" OR src.i_category == "Sports") AND
+                (src.i_class == "computers" OR src.i_class == "stereo" OR src.i_class == "football") ) OR
+              ( (src.i_category == "Men" OR src.i_category == "Jewelry" OR src.i_category == "Women") AND
+                (src.i_class == "shirts" OR src.i_class == "birdal" OR src.i_class == "dresses") )
+        ACCUM tgt.@item = src.i_category + "," + src.i_class + "," + src.i_brand
+        ;
+
+tupleV = SELECT tgt
+         FROM attrV:src- (ss_item_sk)->:tgt
+        ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (ss_sold_date_sk)->:tgt
+         WHERE tgt.@month != 0
+         ACCUM src.@month = tgt.@month
+         ;
+
+//Collection
+
+tupleV = SELECT src
+         FROM tupleV:src- (ss_item_sk)->:tgt
+         ACCUM src.@item = tgt.@item 
+         ;
+
+attrV = SELECT tgt
+         FROM tupleV:src- (ss_store_sk)->:tgt
+         ACCUM CASE WHEN src.ss_sales_price != -1000000.0 THEN
+                  @@sum_sales += (src.@item, tgt.@sstore, src.@month -> src.ss_sales_price) 
+               END
+         ;
+ 
+        
+FOREACH (k1,k2,k3, v) IN @@sum_sales DO
+  @@avg_sales += (k1,k2 -> v, 1);
+END;
+
+FOREACH (k1,k2,k3, v) IN @@sum_sales DO
+  IF (@@avg_sales.get(k1,k2).sales/@@avg_sales.get(k1,k2).cnt) != 0 THEN
+      IF (abs(v - (@@avg_sales.get(k1,k2).sales/@@avg_sales.get(k1,k2).cnt))/(@@avg_sales.get(k1,k2).sales/@@avg_sales.get(k1,k2).cnt)) > 0.1 THEN
+           @@result += (k1,k2,k3 -> v, @@avg_sales.get(k1,k2).sales/@@avg_sales.get(k1,k2).cnt);
+      END;
+  END;
+END;
+
+}
+
+INSTALL QUERY q89

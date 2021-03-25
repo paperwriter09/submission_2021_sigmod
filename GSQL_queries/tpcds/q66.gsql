@@ -1,0 +1,168 @@
+USE GRAPH tpcds
+
+DROP QUERY q66
+
+CREATE QUERY q66() FOR GRAPH tpcds {
+OrAccum @t_filter;
+SumAccum<int> @month;
+SumAccum<double> @jan_sales, @feb_sales, @mar_sales, @apr_sales, @may_sales, @jun_sales, @jul_sales, @aug_sales, @sep_sales, @oct_sales, @nov_sales, @dec_sales,
+                 @jan_net, @feb_net, @mar_net, @apr_net, @may_net, @jun_net, @jul_net, @aug_net, @sep_net, @oct_net, @nov_net, @dec_net,
+                 @jan_sales_per_sq_foot, @feb_sales_per_sq_foot, @mar_sales_per_sq_foot, @apr_sales_per_sq_foot, @may_sales_per_sq_foot, @jun_sales_per_sq_foot, 
+                 @jul_sales_per_sq_foot, @aug_sales_per_sq_foot, @sep_sales_per_sq_foot, @oct_sales_per_sq_foot, @nov_sales_per_sq_foot, @dec_sales_per_sq_foot;
+
+
+Start3 = {ship_mode.*};
+
+attr = SELECT tgt
+              FROM Start3:src - (sm_ship_mode_sk)->:tgt
+              WHERE src.sm_carrier == "DHL" OR src.sm_carrier == "BARIAN"
+              ;
+
+tuple_cs (ANY) = SELECT tgt
+               FROM attr:src -(cs_ship_mode_sk)->:tgt
+               ;
+
+Start2 = {date_dim.*};
+
+attrV (ANY) = SELECT tgt
+              FROM Start2:src - (d_date_sk)->:tgt
+              WHERE src.d_year == 2001
+              ACCUM tgt.@month = src.d_moy
+              ;
+
+tuple_cs = SELECT src
+         FROM tuple_cs:src -(cs_sold_date_sk)->:tgt
+         WHERE tgt.@month > 0
+         ACCUM src.@month = tgt.@month
+         ;
+
+
+Start = {time_dim.*};
+
+attrV = SELECT tgt
+        FROM Start:src - (t_time_sk)->:tgt
+        WHERE src.t_time >= 30838 AND src.t_time <= 59638
+        ACCUM tgt.@t_filter = true
+        ;
+
+tuple_cs = SELECT src
+         FROM tuple_cs:src - (cs_sold_time_sk)->:tgt
+         WHERE tgt.@t_filter
+         ;
+
+//Collection
+
+attrV = SELECT tgt
+        FROM tuple_cs:src -(cs_warehouse_sk)->:tgt
+        ACCUM 
+              CASE WHEN src.cs_sales_price > -1000000 AND src.cs_quantity != -1 THEN
+                     CASE WHEN src.@month == 1 THEN tgt.@jan_sales += src.cs_sales_price * src.cs_quantity
+                          WHEN src.@month == 2 THEN tgt.@feb_sales += src.cs_sales_price * src.cs_quantity
+                          WHEN src.@month == 3 THEN tgt.@mar_sales += src.cs_sales_price * src.cs_quantity
+                          WHEN src.@month == 4 THEN tgt.@apr_sales += src.cs_sales_price * src.cs_quantity
+                          WHEN src.@month == 5 THEN tgt.@may_sales += src.cs_sales_price * src.cs_quantity
+                          WHEN src.@month == 6 THEN tgt.@jun_sales += src.cs_sales_price * src.cs_quantity
+                          WHEN src.@month == 7 THEN tgt.@jul_sales += src.cs_sales_price * src.cs_quantity
+                          WHEN src.@month == 8 THEN tgt.@aug_sales += src.cs_sales_price * src.cs_quantity
+                          WHEN src.@month == 9 THEN tgt.@sep_sales += src.cs_sales_price * src.cs_quantity
+                          WHEN src.@month == 10 THEN tgt.@oct_sales += src.cs_sales_price * src.cs_quantity
+                          WHEN src.@month == 11 THEN tgt.@nov_sales += src.cs_sales_price * src.cs_quantity
+                          WHEN src.@month == 12 THEN tgt.@dec_sales += src.cs_sales_price * src.cs_quantity
+                      END
+              END,
+              CASE WHEN src.cs_net_paid_inc_tax > -1000000 AND src.cs_quantity != -1 THEN
+                     CASE WHEN src.@month == 1 THEN tgt.@jan_net += src.cs_net_paid_inc_tax * src.cs_quantity
+                          WHEN src.@month == 2 THEN tgt.@feb_net += src.cs_net_paid_inc_tax * src.cs_quantity
+                          WHEN src.@month == 3 THEN tgt.@mar_net += src.cs_net_paid_inc_tax * src.cs_quantity
+                          WHEN src.@month == 4 THEN tgt.@apr_net += src.cs_net_paid_inc_tax * src.cs_quantity
+                          WHEN src.@month == 5 THEN tgt.@may_net += src.cs_net_paid_inc_tax * src.cs_quantity
+                          WHEN src.@month == 6 THEN tgt.@jun_net += src.cs_net_paid_inc_tax * src.cs_quantity
+                          WHEN src.@month == 7 THEN tgt.@jul_net += src.cs_net_paid_inc_tax * src.cs_quantity
+                          WHEN src.@month == 8 THEN tgt.@aug_net += src.cs_net_paid_inc_tax * src.cs_quantity
+                          WHEN src.@month == 9 THEN tgt.@sep_net += src.cs_net_paid_inc_tax * src.cs_quantity
+                          WHEN src.@month == 10 THEN tgt.@oct_net += src.cs_net_paid_inc_tax * src.cs_quantity
+                          WHEN src.@month == 11 THEN tgt.@nov_net += src.cs_net_paid_inc_tax * src.cs_quantity
+                          WHEN src.@month == 12 THEN tgt.@dec_net += src.cs_net_paid_inc_tax * src.cs_quantity
+                      END
+              END
+        ;
+
+//web sales
+tuple_ws (ANY) = SELECT tgt
+                 FROM attr:src -(ws_ship_mode_sk)->:tgt
+               ;
+
+tuple_ws = SELECT src
+           FROM tuple_ws:src -(ws_sold_date_sk)->:tgt
+           WHERE tgt.@month > 0
+           ACCUM src.@month = tgt.@month
+         ;
+
+tuple_ws = SELECT src
+           FROM tuple_ws:src - (ws_sold_time_sk)->:tgt
+           WHERE tgt.@t_filter
+         ;
+
+attrV = SELECT tgt
+        FROM tuple_ws:src -(ws_warehouse_sk)->:tgt
+        ACCUM 
+              CASE WHEN src.ws_ext_sales_price > -1000000 AND src.ws_quantity != -1 THEN
+                     CASE WHEN src.@month == 1 THEN tgt.@jan_sales += src.ws_ext_sales_price * src.ws_quantity
+                          WHEN src.@month == 2 THEN tgt.@feb_sales += src.ws_ext_sales_price * src.ws_quantity
+                          WHEN src.@month == 3 THEN tgt.@mar_sales += src.ws_ext_sales_price * src.ws_quantity
+                          WHEN src.@month == 4 THEN tgt.@apr_sales += src.ws_ext_sales_price * src.ws_quantity
+                          WHEN src.@month == 5 THEN tgt.@may_sales += src.ws_ext_sales_price * src.ws_quantity
+                          WHEN src.@month == 6 THEN tgt.@jun_sales += src.ws_ext_sales_price * src.ws_quantity
+                          WHEN src.@month == 7 THEN tgt.@jul_sales += src.ws_ext_sales_price * src.ws_quantity
+                          WHEN src.@month == 8 THEN tgt.@aug_sales += src.ws_ext_sales_price * src.ws_quantity
+                          WHEN src.@month == 9 THEN tgt.@sep_sales += src.ws_ext_sales_price * src.ws_quantity
+                          WHEN src.@month == 10 THEN tgt.@oct_sales += src.ws_ext_sales_price * src.ws_quantity
+                          WHEN src.@month == 11 THEN tgt.@nov_sales += src.ws_ext_sales_price * src.ws_quantity
+                          WHEN src.@month == 12 THEN tgt.@dec_sales += src.ws_ext_sales_price * src.ws_quantity
+                      END
+              END,
+              CASE WHEN src.ws_net_paid > -1000000 AND src.ws_quantity != -1 THEN
+                     CASE WHEN src.@month == 1 THEN tgt.@jan_net += src.ws_net_paid * src.ws_quantity
+                          WHEN src.@month == 2 THEN tgt.@feb_net += src.ws_net_paid * src.ws_quantity
+                          WHEN src.@month == 3 THEN tgt.@mar_net += src.ws_net_paid * src.ws_quantity
+                          WHEN src.@month == 4 THEN tgt.@apr_net += src.ws_net_paid * src.ws_quantity
+                          WHEN src.@month == 5 THEN tgt.@may_net += src.ws_net_paid * src.ws_quantity
+                          WHEN src.@month == 6 THEN tgt.@jun_net += src.ws_net_paid * src.ws_quantity
+                          WHEN src.@month == 7 THEN tgt.@jul_net += src.ws_net_paid * src.ws_quantity
+                          WHEN src.@month == 8 THEN tgt.@aug_net += src.ws_net_paid * src.ws_quantity
+                          WHEN src.@month == 9 THEN tgt.@sep_net += src.ws_net_paid * src.ws_quantity
+                          WHEN src.@month == 10 THEN tgt.@oct_net += src.ws_net_paid * src.ws_quantity
+                          WHEN src.@month == 11 THEN tgt.@nov_net += src.ws_net_paid * src.ws_quantity
+                          WHEN src.@month == 12 THEN tgt.@dec_net += src.ws_net_paid * src.ws_quantity
+                      END
+              END
+        ;
+
+tupleV = SELECT tgt
+         FROM attrV:src -(w_warehouse_sk)->:tgt
+         ACCUM tgt.@jan_sales = src.@jan_sales, tgt.@feb_sales = src.@feb_sales, tgt.@mar_sales = src.@mar_sales,
+tgt.@apr_sales = src.@apr_sales, tgt.@may_sales = src.@may_sales, tgt.@jun_sales = src.@jun_sales,
+tgt.@jul_sales = src.@jul_sales, tgt.@aug_sales = src.@aug_sales, tgt.@sep_sales = src.@sep_sales,
+tgt.@oct_sales = src.@oct_sales, tgt.@nov_sales = src.@nov_sales, tgt.@dec_sales = src.@dec_sales,
+tgt.@jan_net = src.@jan_net, tgt.@feb_net = src.@feb_net, tgt.@mar_net = src.@mar_net,
+tgt.@apr_net = src.@apr_net, tgt.@may_net = src.@may_net, tgt.@jun_net = src.@jun_net,
+tgt.@jul_net = src.@jul_net, tgt.@aug_net = src.@aug_net, tgt.@sep_net = src.@sep_net,
+tgt.@oct_net = src.@oct_net, tgt.@nov_net = src.@nov_net, tgt.@dec_net = src.@dec_net
+         POST-ACCUM tgt.@jan_sales_per_sq_foot = tgt.@jan_sales/tgt.w_warehouse_sq_ft,
+                    tgt.@feb_sales_per_sq_foot = tgt.@feb_sales/tgt.w_warehouse_sq_ft,
+                    tgt.@mar_sales_per_sq_foot = tgt.@mar_sales/tgt.w_warehouse_sq_ft,
+                    tgt.@apr_sales_per_sq_foot = tgt.@apr_sales/tgt.w_warehouse_sq_ft,
+                    tgt.@may_sales_per_sq_foot = tgt.@may_sales/tgt.w_warehouse_sq_ft,
+                    tgt.@jun_sales_per_sq_foot = tgt.@jun_sales/tgt.w_warehouse_sq_ft,
+                    tgt.@jul_sales_per_sq_foot = tgt.@jul_sales/tgt.w_warehouse_sq_ft,
+                    tgt.@aug_sales_per_sq_foot = tgt.@aug_sales/tgt.w_warehouse_sq_ft,
+                    tgt.@sep_sales_per_sq_foot = tgt.@sep_sales/tgt.w_warehouse_sq_ft,
+                    tgt.@oct_sales_per_sq_foot = tgt.@oct_sales/tgt.w_warehouse_sq_ft,
+                    tgt.@nov_sales_per_sq_foot = tgt.@nov_sales/tgt.w_warehouse_sq_ft,
+                    tgt.@dec_sales_per_sq_foot = tgt.@dec_sales/tgt.w_warehouse_sq_ft
+          ;
+
+        
+}
+
+INSTALL QUERY q66

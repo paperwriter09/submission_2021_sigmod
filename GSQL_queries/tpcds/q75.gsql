@@ -1,0 +1,144 @@
+USE GRAPH tpcds
+
+DROP QUERY q75
+
+CREATE QUERY q75() FOR GRAPH tpcds {
+typedef Tuple<int p, int c, int b, int cl, int ca, int m, int pcnt, int ccnt, int cnt_diff, double amt_diff> resTuple;
+ListAccum<resTuple> @@result;
+OrAccum @curr, @prev;
+SumAccum<int> @sales_cnt, @sales_cnt_prev;
+SumAccum<double> @sales_amt, @sales_amt_prev, @@ratio;
+
+GroupByAccum<int ibrand, int iclass, int icateg, int imanu, SumAccum<int> cnt, SumAccum<double> amt> @@sales_curr, @@sales_prev;
+
+Start2 = {date_dim.*};
+
+Start2 = SELECT src
+        FROM Start2:src- (d_date_sk)->:tgt
+        WHERE src.d_year == 2001 OR src.d_year == 2002
+        ACCUM CASE WHEN src.d_year == 2001 THEN tgt.@prev = true
+                                           ELSE tgt.@curr = true
+               END
+        ;
+
+Start = {item.*};
+
+attri = SELECT tgt
+        FROM Start:src- (i_item_sk)->:tgt
+        WHERE src.i_category == "Books" AND src.i_brand_id != -1 AND src.i_class_id != -1
+              AND src.i_category_id != -1 AND src.i_manufact_id != -1
+        ;
+
+//--- catalog ---
+
+tuple_cs = SELECT tgt
+           FROM attri:src- (cs_item_sk)->:tgt
+           ;
+
+tuple_cs = SELECT src
+           FROM tuple_cs:src-(cs_sold_date_sk)->:tgt
+           WHERE tgt.@prev OR tgt.@curr
+           ACCUM src.@prev = tgt.@prev, src.@curr = tgt.@curr
+           POST-ACCUM CASE WHEN src.cs_quantity != -1 THEN src.@sales_cnt += src.cs_quantity END,
+                      CASE WHEN src.cs_ext_sales_price > -1000000.0 THEN src.@sales_amt += src.cs_ext_sales_price END
+           ;
+
+tupleV = SELECT src
+         FROM tuple_cs:src-(cs_cr_order_item)->:tgt
+         ACCUM CASE WHEN tgt.cr_return_quantity != -1 THEN src.@sales_cnt += (-1)*tgt.cr_return_quantity END,
+               CASE WHEN tgt.cr_return_amount > -1000000.0 THEN src.@sales_amt += (-1)*tgt.cr_return_amount END
+         ;
+                  
+
+attr_cs = SELECT tgt
+          FROM tuple_cs:src-(cs_item_sk)->:tgt
+          ACCUM CASE WHEN src.@prev THEN 
+                          tgt.@sales_cnt_prev += src.@sales_cnt, tgt.@sales_amt_prev += src.@sales_amt
+                     ELSE tgt.@sales_cnt += src.@sales_cnt, tgt.@sales_amt += src.@sales_amt
+                END
+        ;
+
+//--- store ---
+
+tuple_ss = SELECT tgt
+           FROM attri:src- (ss_item_sk)->:tgt
+           ;
+
+tuple_ss = SELECT src
+           FROM tuple_ss:src-(ss_sold_date_sk)->:tgt
+           WHERE tgt.@prev OR tgt.@curr
+           ACCUM src.@prev = tgt.@prev, src.@curr = tgt.@curr
+           POST-ACCUM CASE WHEN src.ss_quantity != -1 THEN src.@sales_cnt += src.ss_quantity END,
+                      CASE WHEN src.ss_ext_sales_price > -1000000.0 THEN src.@sales_amt += src.ss_ext_sales_price END
+            ;
+
+tupleV = SELECT src
+         FROM tuple_ss:src-(ss_sr_ticket_item)->:tgt
+         ACCUM CASE WHEN tgt.sr_return_quantity != -1 THEN src.@sales_cnt += (-1)*tgt.sr_return_quantity END,
+               CASE WHEN tgt.sr_return_amt > -1000000.0 THEN src.@sales_amt += (-1)*tgt.sr_return_amt END
+         ;
+
+
+attr_ss = SELECT tgt
+          FROM tuple_ss:src-(ss_item_sk)->:tgt
+          ACCUM CASE WHEN src.@prev THEN
+                          tgt.@sales_cnt_prev += src.@sales_cnt, tgt.@sales_amt_prev += src.@sales_amt
+                     ELSE tgt.@sales_cnt += src.@sales_cnt, tgt.@sales_amt += src.@sales_amt
+                END
+        ;
+
+
+//--- web ---
+
+tuple_ws = SELECT tgt
+           FROM attri:src- (ws_item_sk)->:tgt
+           ;
+
+tuple_ws = SELECT src
+           FROM tuple_ws:src-(ws_sold_date_sk)->:tgt
+           WHERE tgt.@prev OR tgt.@curr
+           ACCUM src.@prev = tgt.@prev, src.@curr = tgt.@curr
+           POST-ACCUM CASE WHEN src.ws_quantity != -1 THEN src.@sales_cnt += src.ws_quantity END,
+                      CASE WHEN src.ws_ext_sales_price > -1000000.0 THEN src.@sales_amt += src.ws_ext_sales_price END
+           ;
+
+tupleV = SELECT src
+         FROM tuple_ws:src-(ws_wr_order_item)->:tgt
+         ACCUM CASE WHEN tgt.wr_return_quantity != -1 THEN src.@sales_cnt += (-1)*tgt.wr_return_quantity END,
+               CASE WHEN tgt.wr_return_amt > -1000000.0 THEN src.@sales_amt += (-1)*tgt.wr_return_amt END
+         ;
+
+attr_ws = SELECT tgt
+          FROM tuple_ws:src-(ws_item_sk)->:tgt
+          ACCUM CASE WHEN src.@prev THEN
+                          tgt.@sales_cnt_prev += src.@sales_cnt, tgt.@sales_amt_prev += src.@sales_amt
+                     ELSE tgt.@sales_cnt += src.@sales_cnt, tgt.@sales_amt += src.@sales_amt
+                END
+        ;
+
+
+attrV = attr_cs UNION attr_ss UNION attr_ws;
+
+attrV = SELECT src
+        FROM attrV:src-(i_item_sk)->:tgt
+        ACCUM  CASE WHEN src.@sales_cnt !=0 OR src.@sales_amt != 0 
+               THEN @@sales_curr += (tgt.i_brand_id, tgt.i_class_id, tgt.i_category_id, tgt.i_manufact_id -> src.@sales_cnt,src.@sales_amt) END,
+               CASE WHEN src.@sales_cnt_prev !=0 OR src.@sales_amt_prev != 0
+               THEN @@sales_prev += (tgt.i_brand_id, tgt.i_class_id, tgt.i_category_id, tgt.i_manufact_id -> src.@sales_cnt_prev,src.@sales_amt_prev)
+               END
+            ;
+
+FOREACH (k1,k2,k3,k4,v1,v2) IN @@sales_curr DO
+  IF @@sales_prev.containsKey(k1,k2,k3,k4) THEN
+    @@ratio = v1;
+    @@ratio = @@ratio/@@sales_prev.get(k1,k2,k3,k4).cnt;
+     CASE WHEN @@ratio < 0.9 AND (0.9 - @@ratio) > 0.001 THEN
+           @@result += resTuple(2001,2002,k1,k2,k3,k4,@@sales_prev.get(k1,k2,k3,k4).cnt,v1, v1-@@sales_prev.get(k1,k2,k3,k4).cnt, v2-@@sales_prev.get(k1,k2,k3,k4).amt);
+     END;
+  END;
+END;
+
+
+}
+
+INSTALL QUERY q75

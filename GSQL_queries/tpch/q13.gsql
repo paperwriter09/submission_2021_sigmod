@@ -1,0 +1,33 @@
+USE GRAPH tpch
+
+DROP QUERY q13
+
+CREATE QUERY q13() FOR GRAPH tpch {
+MapAccum<int, SumAccum<int>> @@result;
+SumAccum<int> @countOrder;
+
+Start = {customer.*};
+
+// Reduction
+
+    attr_c = SELECT tgt
+             FROM Start:src - (C_CUSTKEY:e) -> :tgt
+             ;
+
+// Collection
+    attrV = SELECT src
+            FROM attr_c:src - (O_CUSTKEY:e) -> :tgt
+            WHERE tgt.O_COMMENT NOT LIKE "%special%requests%"
+            ACCUM src.@countOrder += 1
+            POST-ACCUM @@result += (src.@countOrder -> 1)
+             ;
+
+
+
+@@result += (0 -> attr_c.size()-attrV.size());
+
+
+
+}
+
+INSTALL QUERY q13

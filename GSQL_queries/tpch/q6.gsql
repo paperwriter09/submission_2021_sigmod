@@ -1,0 +1,26 @@
+USE GRAPH tpch
+
+DROP QUERY q6
+
+CREATE QUERY q6() FOR GRAPH tpch {
+SumAccum<double> @@result;
+
+Start = {attribute_date.*};
+
+// Reduction, Collection
+    Start = SELECT src
+            FROM Start:src
+            WHERE src.id >= to_datetime("1994-01-01") AND src.id < to_datetime("1995-01-01")
+            ;
+
+    attrV = SELECT src
+            FROM Start:src - (L_SHIPDATE:e) -> :tgt
+            WHERE tgt.L_QUANTITY < 24 AND tgt.L_DISCOUNT >=0.05 AND tgt.L_DISCOUNT <= 0.07
+            ACCUM @@result += tgt.L_EXTENDEDPRICE * tgt.L_DISCOUNT
+             ;
+
+
+}
+
+INSTALL QUERY q6
+

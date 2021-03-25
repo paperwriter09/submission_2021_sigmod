@@ -1,0 +1,116 @@
+USE GRAPH tpch
+
+DROP QUERY q8
+
+CREATE QUERY q8() FOR GRAPH tpch {
+typedef Tuple<int YEAR, double SHARE> resultTuple;
+MapAccum<int, SumAccum<double>> @volume; //<year, volume> per supplier
+MapAccum<int, SumAccum<double>> @@regionVolume; //<year, totalVolume> for region
+ListAccum<resultTuple> @result;
+OrAccum @P_filter;
+SumAccum<int> @year;
+
+
+
+Start = {region.*};
+         
+
+// Reduction
+Start = SELECT src
+        FROM Start:src
+        WHERE src.R_NAME == "AMERICA"
+         ;
+
+
+    attrV = SELECT tgt
+            FROM Start:src - (R_REGIONKEY) -> :tgt
+            WHERE src.R_NAME == "AMERICA"
+                  ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (N_REGIONKEY) -> :tgt
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (N_NATIONKEY:e) -> :tgt
+            ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (C_NATIONKEY:e) -> :tgt
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (C_CUSTKEY:e) -> :tgt
+            ACCUM tgt.@P_filter = true
+            ;
+    
+
+Start2 = {part.*};
+    Start2 = SELECT src
+             FROM Start2:src
+             WHERE src.P_TYPE == "ECONOMY ANODIZED STEEL"
+             ;
+    
+    attrV = SELECT tgt
+            FROM Start2:src - (P_PARTKEY:e) -> :tgt
+                  ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (L_PARTKEY:e) -> :tgt
+             ACCUM tgt.@P_filter = true
+             ;
+
+    attrV = SELECT tgt
+             FROM tupleV:src - (L_ORDERKEY:e) -> :tgt
+            ;
+    
+    tupleV = SELECT tgt
+             FROM attrV:src - (O_ORDERKEY:e) -> :tgt
+             WHERE tgt.O_ORDERDATE >= to_datetime("1995-01-01") AND tgt.O_ORDERDATE <= to_datetime("1996-12-31")
+             ;
+
+    tupleV = SELECT src
+             FROM tupleV:src - (O_CUSTKEY:e) -> :tgt
+             WHERE tgt.@P_filter
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (O_ORDERKEY:e) -> :tgt
+            ACCUM tgt.@year = year(src.O_ORDERDATE)
+            ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (L_ORDERKEY:e) -> :tgt
+             WHERE tgt.@P_filter
+             ACCUM tgt.@year = src.@year
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (L_SUPPKEY:e) -> :tgt
+            ACCUM tgt.@volume += (src.@year -> src.L_EXTENDEDPRICE * (1 - src.L_DISCOUNT))
+            ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (S_SUPPKEY) -> :tgt
+             ACCUM tgt.@volume = src.@volume
+             POST-ACCUM src.@volume.clear()
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (S_NATIONKEY) -> :tgt
+            ACCUM tgt.@volume += src.@volume
+            POST-ACCUM @@regionVolume += tgt.@volume
+            ;
+
+    attrV = SELECT src
+            FROM attrV:src - (N_NATIONKEY) -> :tgt
+            WHERE tgt.N_NAME == "BRAZIL"
+            ACCUM FOREACH (k,v) in src.@volume DO
+                       src.@result += resultTuple(k, v/@@regionVolume.get(k))
+                       END
+            ;
+
+
+}
+
+INSTALL QUERY q8

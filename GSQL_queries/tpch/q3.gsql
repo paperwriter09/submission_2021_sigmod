@@ -1,0 +1,43 @@
+USE GRAPH tpch
+
+DROP QUERY q3
+
+CREATE QUERY q3() FOR GRAPH tpch {
+SumAccum<double> @revenue;
+
+Start = {customer.*};
+
+// Reduction
+
+    attrV = SELECT tgt
+            FROM Start:src - (C_CUSTKEY:e) -> :tgt
+            WHERE src.C_MKTSEGMENT == "BUILDING"
+                  ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (O_CUSTKEY:e) -> :tgt
+             WHERE tgt.O_ORDERDATE < to_datetime("1995-03-15")
+                  ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src-(O_ORDERKEY:e)->:tgt
+            ;
+
+
+// Collection
+
+    attrV = SELECT src
+            FROM attrV:src-(L_ORDERKEY:e)->:tgt
+            WHERE tgt.L_SHIPDATE > to_datetime("1995-03-15")
+            ACCUM src.@revenue += tgt.L_EXTENDEDPRICE * (1 - tgt.L_DISCOUNT)
+            ;
+
+    tupleV  = SELECT tgt
+             FROM attrV:src - (O_ORDERKEY:e) -> :tgt
+             ACCUM tgt.@revenue = src.@revenue
+             ;
+
+
+}
+
+INSTALL QUERY q3

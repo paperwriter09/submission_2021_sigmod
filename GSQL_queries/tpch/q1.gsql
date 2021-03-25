@@ -1,0 +1,25 @@
+USE GRAPH tpch
+
+DROP QUERY q1
+
+CREATE QUERY q1() FOR GRAPH tpch {
+GroupByAccum<string RETURNFLAG, string LINESTATUS, SumAccum<double> SUM_QTY, SumAccum<double> SUM_BASE_PRICE, SumAccum<double> SUM_DISC_PRICE, SumAccum<double> SUM_CHARGE, AvgAccum AVG_QTY, AvgAccum AVG_PRICE, AvgAccum AVG_DISC, SumAccum<int> COUNT_ORDER> @@result;
+
+
+Start = {attribute_date.*};
+
+// Reduction, Collection
+    Start = SELECT src
+            FROM Start:src
+            WHERE src.id <= to_datetime("1998-09-02")
+            ;
+
+    tupleV = SELECT src
+             FROM Start:src - (L_SHIPDATE:e) -> :tgt
+             ACCUM @@result += (tgt.L_RETURNFLAG, tgt.L_LINESTATUS -> tgt.L_QUANTITY, tgt.L_EXTENDEDPRICE, tgt.L_EXTENDEDPRICE*(1-tgt.L_DISCOUNT),tgt.L_EXTENDEDPRICE*(1-tgt.L_DISCOUNT)*(1+tgt.L_TAX), tgt.L_QUANTITY, tgt.L_EXTENDEDPRICE, tgt.L_DISCOUNT, 1)
+             ;
+
+}
+
+INSTALL QUERY q1
+

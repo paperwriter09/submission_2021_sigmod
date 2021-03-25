@@ -1,0 +1,77 @@
+USE GRAPH tpcds
+
+DROP QUERY q28
+
+CREATE QUERY q28() FOR GRAPH tpcds {
+AvgAccum  @@avg_1, @@avg_2, @@avg_3, @@avg_4, @@avg_5, @@avg_6;
+SumAccum<int> @@cnt_1, @@cnt_2, @@cnt_3, @@cnt_4, @@cnt_5, @@cnt_6;
+SetAccum<double> @@set_1, @@set_2, @@set_3, @@set_4, @@set_5, @@set_6;
+
+Start = {store_sales.*};
+
+bucket = SELECT src
+          FROM Start:src
+          WHERE src.ss_quantity >= 0 AND src.ss_quantity <= 30
+                AND src.ss_list_price > -1000000.0
+          ACCUM CASE WHEN 
+                src.ss_quantity >= 0 AND src.ss_quantity <= 5 AND (
+               (src.ss_list_price >= 8 AND src.ss_list_price <= 18) OR
+               (src.ss_coupon_amt >= 459 AND src.ss_coupon_amt <= 1459) OR
+               (src.ss_wholesale_cost >= 57 AND src.ss_wholesale_cost <= 77))
+                THEN @@avg_1 += src.ss_list_price, 
+                     @@cnt_1 += 1,
+                     @@set_1 += src.ss_list_price END,
+               CASE WHEN 
+                 src.ss_quantity >= 6 AND src.ss_quantity <= 10 AND (
+               (src.ss_list_price >= 90 AND src.ss_list_price <= 100) OR
+               (src.ss_coupon_amt >= 2323 AND src.ss_coupon_amt <= 3323) OR
+               (src.ss_wholesale_cost >= 31 AND src.ss_wholesale_cost <= 51))
+               THEN  @@avg_2 += src.ss_list_price,
+                     @@cnt_2 += 1,
+                     @@set_2 += src.ss_list_price END,
+               CASE WHEN
+                 src.ss_quantity >= 11 AND src.ss_quantity <= 15 AND (
+               (src.ss_list_price >= 142 AND src.ss_list_price <= 152) OR
+               (src.ss_coupon_amt >= 12214 AND src.ss_coupon_amt <= 13214) OR
+               (src.ss_wholesale_cost >= 79 AND src.ss_wholesale_cost <= 99))
+               THEN  @@avg_3 += src.ss_list_price,
+                     @@cnt_3 += 1,
+                     @@set_3 += src.ss_list_price END,
+               CASE WHEN
+                 src.ss_quantity >= 16 AND src.ss_quantity <= 20 AND (
+               (src.ss_list_price >= 135 AND src.ss_list_price <= 145) OR
+               (src.ss_coupon_amt >= 6071 AND src.ss_coupon_amt <= 7071) OR
+               (src.ss_wholesale_cost >= 38 AND src.ss_wholesale_cost <= 58))
+               THEN  @@avg_4 += src.ss_list_price,
+                     @@cnt_4 += 1,
+                     @@set_4 += src.ss_list_price END,
+               CASE WHEN
+                 src.ss_quantity >= 21 AND src.ss_quantity <= 25 AND (
+               (src.ss_list_price >= 122 AND src.ss_list_price <= 132) OR
+               (src.ss_coupon_amt >= 836 AND src.ss_coupon_amt <= 1836) OR
+               (src.ss_wholesale_cost >= 17 AND src.ss_wholesale_cost <= 37))
+               THEN  @@avg_5 += src.ss_list_price,
+                     @@cnt_5 += 1,
+                     @@set_5 += src.ss_list_price END,
+               CASE WHEN
+                 src.ss_quantity >= 26 AND src.ss_quantity <= 30 AND (
+               (src.ss_list_price >= 154 AND src.ss_list_price <= 164) OR
+               (src.ss_coupon_amt >= 7326 AND src.ss_coupon_amt <= 8326) OR
+               (src.ss_wholesale_cost >= 7 AND src.ss_wholesale_cost <= 27))
+               THEN  @@avg_6 += src.ss_list_price,
+                     @@cnt_6 += 1,
+                     @@set_6 += src.ss_list_price END
+       ;
+
+
+/*
+PRINT @@avg_1, @@cnt_1, @@set_1.size();
+PRINT @@avg_2, @@cnt_2, @@set_2.size();
+PRINT @@avg_3, @@cnt_3, @@set_3.size();
+PRINT @@avg_4, @@cnt_4, @@set_4.size();
+PRINT @@avg_5, @@cnt_5, @@set_5.size();
+PRINT @@avg_6, @@cnt_6, @@set_6.size();
+*/
+}
+
+INSTALL QUERY q28

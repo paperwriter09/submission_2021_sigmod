@@ -1,0 +1,49 @@
+USE GRAPH tpcds
+
+DROP QUERY q84
+
+CREATE QUERY q84() FOR GRAPH tpcds {
+OrAccum @ib_filter;
+
+Start = {income_band.*};
+
+
+    attrV (ANY) = SELECT tgt
+                   FROM Start:src- (ib_income_band_sk)->:tgt
+                   WHERE src.ib_lower_bound >= 38128 AND src.ib_upper_bound <= 88128
+                   ;
+
+    tupleV (ANY) = SELECT tgt
+                   FROM attrV:src- (hd_income_band_sk)->:tgt
+                   ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src- (hd_demo_sk)->:tgt
+            ACCUM tgt.@ib_filter = true
+            ;
+
+Start2 = {customer_address.*};
+
+    attrV  = SELECT tgt
+             FROM Start2:src-(ca_address_sk)->:tgt
+             WHERE src.ca_city == "Edgewood"
+             ;
+
+   tupleV = SELECT tgt
+            FROM attrV:src-(c_current_addr_sk)->:tgt
+            ;
+
+
+   tupleV = SELECT src
+            FROM tupleV:src-(c_current_hdemo_sk)->:tgt
+            WHERE tgt.@ib_filter
+            ;
+
+   tupleV = SELECT src
+            FROM tupleV:src-(c_current_cdemo_sk)->:tgt
+            WHERE tgt.outdegree("sr_cdemo_sk") > 0 AND tgt.outdegree("cd_demo_sk") > 0
+            ;
+
+}
+
+INSTALL QUERY q84

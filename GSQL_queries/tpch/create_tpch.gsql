@@ -1,0 +1,166 @@
+//TPC-H graph schema
+
+CREATE VERTEX attribute_int (id int PRIMARY KEY)
+CREATE VERTEX attribute_str (id string PRIMARY KEY)
+CREATE VERTEX attribute_date (id datetime PRIMARY KEY)
+CREATE VERTEX attribute_dbl (id double PRIMARY KEY)
+
+// lineitem ! (L_ORDERKEY,L_LINENUMBER)
+CREATE VERTEX lineitem (
+L_ORDERKEY int,
+L_PARTKEY int, 
+L_SUPPKEY int, 
+L_LINENUMBER int, 
+L_QUANTITY double, 
+L_EXTENDEDPRICE double,
+L_DISCOUNT double, 
+L_TAX double, 
+L_RETURNFLAG string, 
+L_LINESTATUS string, 
+L_SHIPDATE datetime, 
+L_COMMITDATE datetime, 
+L_RECEIPTDATE datetime, 
+L_SHIPINSTRUCT string, 
+L_SHIPMODE string, 
+L_COMMENT string,
+PRIMARY KEY(L_ORDERKEY,L_LINENUMBER)
+)
+
+// orders
+CREATE VERTEX orders (
+O_ORDERKEY int PRIMARY KEY, 
+O_CUSTKEY int, 
+O_ORDERSTATUS string, 
+O_TOTALPRICE double, 
+O_ORDERDATE datetime, 
+O_ORDERPRIORITY string, 
+O_CLERK string, 
+O_SHIPPRIORITY int, 
+O_COMMENT string)
+
+// nation
+CREATE VERTEX nation (
+N_NATIONKEY int PRIMARY KEY, 
+N_NAME string, 
+N_REGIONKEY int, 
+N_COMMENT string)
+
+// region
+CREATE VERTEX region (
+R_REGIONKEY int PRIMARY KEY, 
+R_NAME string,
+R_COMMENT string)
+
+// part 
+CREATE VERTEX part (
+P_PARTKEY int PRIMARY KEY, 
+P_NAME string, 
+P_MFGR string, 
+P_BRAND string, 
+P_TYPE string, 
+P_SIZE int, 
+P_CONTAINER string, 
+P_RETAILPRICE double, 
+P_COMMENT string)
+
+// supplier
+CREATE VERTEX supplier (
+S_SUPPKEY int PRIMARY KEY, 
+S_NAME string, 
+S_ADDRESS string, 
+S_NATIONKEY int, 
+S_PHONE string, 
+S_ACCTBAL double, 
+S_COMMENT string)
+
+// partsuppupp ! (PS_PARTKEY,PS_SUPPKEY)
+CREATE VERTEX partsupp (
+PS_PARTKEY int, 
+PS_SUPPKEY int, 
+PS_AVAILQTY int, 
+PS_SUPPLYCOST double, 
+PS_COMMENT string,
+PRIMARY KEY (PS_PARTKEY,PS_SUPPKEY)
+)
+
+// customer
+CREATE VERTEX customer (
+C_CUSTKEY int PRIMARY KEY, 
+C_NAME string, 
+C_ADDRESS string, 
+C_NATIONKEY int, 
+C_PHONE string, 
+C_ACCTBAL double, 
+C_MKTSEGMENT string, 
+C_COMMENT string)
+
+CREATE UNDIRECTED EDGE C_CUSTKEY (FROM customer, TO attribute_int)
+CREATE UNDIRECTED EDGE C_NAME (FROM customer, TO attribute_str)
+CREATE UNDIRECTED EDGE C_ADDRESS (FROM customer, TO attribute_str)
+CREATE UNDIRECTED EDGE C_NATIONKEY (FROM customer, TO attribute_int)
+CREATE UNDIRECTED EDGE C_PHONE (FROM customer, TO attribute_str)
+CREATE UNDIRECTED EDGE C_ACCTBAL (FROM customer, TO attribute_dbl)
+CREATE UNDIRECTED EDGE C_MKTSEGMENT (FROM customer, TO attribute_str)
+CREATE UNDIRECTED EDGE C_COMMENT (FROM customer, TO attribute_str)
+
+CREATE UNDIRECTED EDGE PS_PARTKEY (FROM partsupp, TO attribute_int)
+CREATE UNDIRECTED EDGE PS_SUPPKEY (FROM partsupp, TO attribute_int)
+CREATE UNDIRECTED EDGE PS_AVAILQTY (FROM partsupp, TO attribute_int)
+CREATE UNDIRECTED EDGE PS_SUPPLYCOST (FROM partsupp, TO attribute_dbl)
+CREATE UNDIRECTED EDGE PS_COMMENT (FROM partsupp, TO attribute_str)
+
+CREATE UNDIRECTED EDGE S_SUPPKEY (FROM supplier, TO attribute_int)
+CREATE UNDIRECTED EDGE S_NAME (FROM supplier, TO attribute_str)
+CREATE UNDIRECTED EDGE S_ADDRESS (FROM supplier, TO attribute_str)
+CREATE UNDIRECTED EDGE S_NATIONKEY (FROM supplier, TO attribute_int)
+CREATE UNDIRECTED EDGE S_PHONE (FROM supplier, TO attribute_str)
+CREATE UNDIRECTED EDGE S_ACCTBAL (FROM supplier, TO attribute_dbl)
+CREATE UNDIRECTED EDGE S_COMMENT (FROM supplier, TO attribute_str)
+
+CREATE UNDIRECTED EDGE P_PARTKEY (FROM part, TO attribute_int)
+CREATE UNDIRECTED EDGE P_NAME (FROM part, TO attribute_str)
+CREATE UNDIRECTED EDGE P_MFGR (FROM part, TO attribute_str)
+CREATE UNDIRECTED EDGE P_BRAND (FROM part, TO attribute_str)
+CREATE UNDIRECTED EDGE P_TYPE (FROM part, TO attribute_str)
+CREATE UNDIRECTED EDGE P_SIZE (FROM part, TO attribute_int)
+CREATE UNDIRECTED EDGE P_CONTAINER (FROM part, TO attribute_str)
+CREATE UNDIRECTED EDGE P_RETAILPRICE (FROM part, TO attribute_dbl)
+CREATE UNDIRECTED EDGE P_COMMENT (FROM part, TO attribute_str)
+
+CREATE UNDIRECTED EDGE R_REGIONKEY (FROM region, TO attribute_int)
+CREATE UNDIRECTED EDGE R_NAME (FROM region, TO attribute_str)
+CREATE UNDIRECTED EDGE R_COMMENT (FROM region, TO attribute_str)
+
+CREATE UNDIRECTED EDGE N_NATIONKEY (FROM nation, TO attribute_int)
+CREATE UNDIRECTED EDGE N_NAME (FROM nation, TO attribute_str)
+CREATE UNDIRECTED EDGE N_REGIONKEY (FROM nation, TO attribute_int)
+CREATE UNDIRECTED EDGE N_COMMENT (FROM nation, TO attribute_str)
+
+CREATE UNDIRECTED EDGE L_ORDERKEY (FROM lineitem, TO attribute_int)
+CREATE UNDIRECTED EDGE L_PARTKEY (FROM lineitem, TO attribute_int)
+CREATE UNDIRECTED EDGE L_SUPPKEY (FROM lineitem, TO attribute_int)
+CREATE UNDIRECTED EDGE L_LINENUMBER (FROM lineitem, TO attribute_int)
+CREATE UNDIRECTED EDGE L_QUANTITY (FROM lineitem, TO attribute_dbl)
+CREATE UNDIRECTED EDGE L_EXTENDEDPRICE (FROM lineitem, TO attribute_dbl)
+CREATE UNDIRECTED EDGE L_DISCOUNT (FROM lineitem, TO attribute_dbl)
+CREATE UNDIRECTED EDGE L_TAX (FROM lineitem, TO attribute_dbl)
+CREATE UNDIRECTED EDGE L_RETURNFLAG (FROM lineitem, TO attribute_str)
+CREATE UNDIRECTED EDGE L_LINESTATUS (FROM lineitem, TO attribute_str)
+CREATE UNDIRECTED EDGE L_SHIPDATE (FROM lineitem, TO attribute_date)
+CREATE UNDIRECTED EDGE L_COMMITDATE (FROM lineitem, TO attribute_date)
+CREATE UNDIRECTED EDGE L_RECEIPTDATE (FROM lineitem, TO attribute_date)
+CREATE UNDIRECTED EDGE L_SHIPINSTRUCT (FROM lineitem, TO attribute_str)
+CREATE UNDIRECTED EDGE L_SHIPMODE (FROM lineitem, TO attribute_str)
+CREATE UNDIRECTED EDGE L_COMMENT (FROM lineitem, TO attribute_str)
+
+CREATE UNDIRECTED EDGE O_ORDERKEY (FROM orders, TO attribute_int)
+CREATE UNDIRECTED EDGE O_CUSTKEY (FROM orders, TO attribute_int)
+CREATE UNDIRECTED EDGE O_ORDERSTATUS (FROM orders, TO attribute_str)
+CREATE UNDIRECTED EDGE O_TOTALPRICE (FROM orders, TO attribute_dbl)
+CREATE UNDIRECTED EDGE O_ORDERDATE (FROM orders, TO attribute_date)
+CREATE UNDIRECTED EDGE O_ORDERPRIORITY (FROM orders, TO attribute_str)
+CREATE UNDIRECTED EDGE O_CLERK (FROM orders, TO attribute_str)
+CREATE UNDIRECTED EDGE O_SHIPPRIORITY (FROM orders, TO attribute_int)
+CREATE UNDIRECTED EDGE O_COMMENT (FROM orders, TO attribute_str)
+CREATE GRAPH tpch(*)
+

@@ -1,0 +1,54 @@
+USE GRAPH tpcds
+
+DROP QUERY q22
+
+CREATE QUERY q22() FOR GRAPH tpcds {
+typedef Tuple<product string, brand string> d2Tuple;
+typedef Tuple<product string, brand string, iclass string> d3Tuple;
+typedef Tuple<product string, brand string, iclass string, category string> d4Tuple;
+MapAccum <string, AvgAccum> @@d1;
+MapAccum <d2Tuple, AvgAccum> @@d2;
+MapAccum <d3Tuple, AvgAccum> @@d3;
+MapAccum <d4Tuple, AvgAccum> @@d4;
+AvgAccum @@total_d, @local;
+
+
+//Reduction
+
+Start = {date_dim.*};
+
+    attrV (ANY)  = SELECT tgt
+                   FROM Start:src - (d_date_sk)->:tgt
+                   WHERE src.d_month_seq >= 1200 AND src.d_month_seq <= 1211
+                   ;
+
+   tupleV = SELECT tgt
+            FROM attrV:src- (inv_date_sk)->:tgt
+            WHERE tgt.inv_quantity_on_hand != -1
+            ;
+
+//Collection
+    attrV = SELECT tgt
+            FROM tupleV:src- (inv_item_sk)->:tgt
+            ACCUM tgt.@local += src.inv_quantity_on_hand
+            ;
+
+    attrV = SELECT tgt
+            FROM attrV:src-(i_item_sk)->:tgt
+            ACCUM @@d4 += (d4Tuple(tgt.i_product_name, tgt.i_brand, tgt.i_class, tgt.i_category) -> src.@local)
+            ;
+
+FOREACH (k,v) IN @@d4 DO
+    
+    @@d1 += (k.product -> v);
+    @@d2 += (d2Tuple(k.product, k.brand) -> v);
+    @@d3 += (d3Tuple(k.product, k.brand, k.iclass) -> v);
+    @@total_d += v;
+
+END;
+
+@@d4 += (d4Tuple("NULL_", "NULL_", "NULL_", "NULL_") ->  @@total_d);
+
+}
+
+INSTALL QUERY q22

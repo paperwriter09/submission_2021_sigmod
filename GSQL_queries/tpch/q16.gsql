@@ -1,0 +1,45 @@
+USE GRAPH tpch
+
+DROP QUERY q16
+
+CREATE QUERY q16() FOR GRAPH tpch {
+typedef Tuple<string pbrand_ptype, int psize> partTuple;
+
+ListAccum<partTuple> @P_list;
+MapAccum<partTuple, SumAccum<int>> @@result;
+SumAccum<string> @brand_type;
+SumAccum<int> @size;
+
+Start = {part.*};
+
+// Reduction
+
+    attrV = SELECT tgt
+            FROM Start:src - (P_PARTKEY:e) -> :tgt
+            WHERE src.P_BRAND != "Brand#45" AND src.P_TYPE NOT LIKE "MEDIUM POLISHED%" AND (src.P_SIZE==49 OR src.P_SIZE==14 OR src.P_SIZE==23 OR src.P_SIZE==45 OR src.P_SIZE==19 OR src.P_SIZE==3 OR src.P_SIZE==36 OR src.P_SIZE==9)
+            ACCUM tgt.@brand_type = src.P_BRAND + "," + src.P_TYPE, tgt.@size = src.P_SIZE 
+                  ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (PS_PARTKEY:e) -> :tgt
+             ACCUM tgt.@brand_type = src.@brand_type, tgt.@size = src.@size 
+                  ;
+
+// Collection
+    
+    attrV  = SELECT tgt
+             FROM tupleV:src - (PS_SUPPKEY:e) -> :tgt
+             ACCUM tgt.@P_list += partTuple(src.@brand_type, src.@size)
+             ;
+
+    attrV = SELECT src
+            FROM attrV:src - (S_SUPPKEY) -> :tgt
+            WHERE tgt.S_COMMENT NOT LIKE "%Customer%Complaints%"
+            ACCUM FOREACH p in src.@P_list DO @@result += (p -> 1) END
+            ;
+
+
+
+}
+
+INSTALL QUERY q16

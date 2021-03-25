@@ -1,0 +1,54 @@
+USE GRAPH tpcds
+
+DROP QUERY q43
+
+CREATE QUERY q43() FOR GRAPH tpcds {
+SumAccum<string> @day, @store_name;
+MapAccum<string, SumAccum<double>> @@result_mon, @@result_tue, @@result_wed, @@result_thu, @@result_fri, @@result_sat, @@result_sun;
+
+
+Start = {date_dim.*};
+
+attrV (ANY) = SELECT tgt
+        FROM Start:src - (d_date_sk)->:tgt
+        WHERE src.d_year == 2000
+        ACCUM tgt.@day = src.d_day_name
+        ;
+
+tupleV (ANY) = SELECT tgt
+               FROM attrV:src -(ss_sold_date_sk)->:tgt
+               WHERE tgt.ss_sales_price > -1000000.0
+              ;
+
+
+Start3 = {sstore.*};
+
+attrV = SELECT tgt
+        FROM Start3:src - (s_store_sk)->:tgt
+        WHERE src.s_gmt_offset == -5
+        ACCUM tgt.@store_name = src.s_store_name + "," + src.s_store_id
+        ;
+
+
+tupleV = SELECT src
+         FROM tupleV:src -(ss_store_sk)->:tgt
+         WHERE tgt.@store_name != ""
+         ACCUM src.@store_name = tgt.@store_name
+         ;
+
+
+tupleV = SELECT src
+         FROM tupleV:src -(ss_sold_date_sk)->:tgt
+         ACCUM CASE WHEN tgt.@day == "Sunday" THEN @@result_sun += (src.@store_name -> src.ss_sales_price)
+                    WHEN tgt.@day == "Monday" THEN @@result_mon += (src.@store_name -> src.ss_sales_price)
+                    WHEN tgt.@day == "Tuesday" THEN @@result_tue += (src.@store_name -> src.ss_sales_price)
+                    WHEN tgt.@day == "Wednesday" THEN @@result_wed += (src.@store_name -> src.ss_sales_price)
+                    WHEN tgt.@day == "Thursday" THEN @@result_thu += (src.@store_name -> src.ss_sales_price)
+                    WHEN tgt.@day == "Friday" THEN @@result_fri += (src.@store_name -> src.ss_sales_price)
+                    ELSE @@result_sat += (src.@store_name -> src.ss_sales_price)
+         END
+       ;
+
+}
+
+INSTALL QUERY q43

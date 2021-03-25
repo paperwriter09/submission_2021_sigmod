@@ -1,0 +1,58 @@
+//eager aggregation: agg before join
+USE GRAPH tpcds
+
+DROP QUERY q74
+
+CREATE QUERY q74() FOR GRAPH tpcds {
+OrAccum @first;
+SumAccum<double> @ss_first, @ss_sec, @ws_first, @ws_sec;
+ListAccum<string> @@result;
+
+Start = {date_dim.*};
+
+attrV = SELECT tgt
+	      FROM Start:src- (d_date_sk)->:tgt
+	      WHERE src.d_year == 2001 OR src.d_year == 2002
+	      ACCUM CASE WHEN src.d_year == 2001 THEN tgt.@first = true END
+          ;
+
+tuple_ws = SELECT tgt
+           FROM attrV:src- (ws_sold_date_sk)->:tgt
+           ACCUM tgt.@first = src.@first
+         ;
+
+attr_ws = SELECT tgt
+          FROM tuple_ws:src- (ws_bill_customer_sk)->:tgt
+          WHERE src.ws_net_paid > -1000000.0
+          ACCUM CASE WHEN src.@first THEN tgt.@ws_first += src.ws_net_paid
+                     ELSE tgt.@ws_sec += src.ws_net_paid
+                END
+          HAVING tgt.@ws_first > 0 AND tgt.@ws_sec != 0
+          ;
+
+tuple_ss = SELECT tgt
+	         FROM attrV:src- (ss_sold_date_sk)->:tgt
+           ACCUM tgt.@first = src.@first
+         ;
+     
+attr_ss = SELECT tgt
+          FROM tuple_ss:src- (ss_customer_sk)->:tgt
+          WHERE src.ss_net_paid > -1000000.0
+          ACCUM CASE WHEN src.@first THEN tgt.@ss_first += src.ss_net_paid
+                     ELSE tgt.@ss_sec += src.ss_net_paid
+                END
+          HAVING tgt.@ss_first > 0 AND tgt.@ss_sec != 0
+          ;
+
+
+attr_ss = attr_ss INTERSECT attr_ws;
+
+attr_ss = SELECT src
+         FROM attr_ss:src- (c_customer_sk)->:tgt
+         WHERE (src.@ws_sec/src.@ws_first) > (src.@ss_sec/src.@ss_first)
+         ACCUM @@result += tgt.c_customer_id + "," + tgt.c_first_name + "," + tgt.c_last_name 
+         ;
+
+}
+
+INSTALL QUERY q74

@@ -1,0 +1,78 @@
+USE GRAPH tpcds
+
+DROP QUERY q69
+
+CREATE QUERY q69() FOR GRAPH tpcds {
+OrAccum @ss, @cs, @ws;
+SumAccum<int> @cnt;
+GroupByAccum <string gender, string marital, string edu, int purchase, string credit, SumAccum<int> cnt3> @@result3;
+
+//Reduction
+
+Start = {date_dim.*};
+
+attrd = SELECT tgt
+	      FROM Start:src- (d_date_sk)->:tgt
+	      WHERE src.d_year == 2001 AND src.d_moy >= 4 AND src.d_moy <= 6 
+	  ;
+
+tupleV (ANY) = SELECT tgt
+	             FROM attrd:src- (cs_sold_date_sk)->:tgt
+               ;
+     
+attrV (ANY) = SELECT tgt
+              FROM tupleV:src- (cs_ship_customer_sk)->:tgt
+              ACCUM tgt.@cs = true
+              ;
+
+tupleV = SELECT tgt
+         FROM attrd:src- (ws_sold_date_sk)->:tgt
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (ws_bill_customer_sk)->:tgt
+        ACCUM tgt.@ws = true
+        ;
+
+tupleV = SELECT tgt
+         FROM attrd:src- (ss_sold_date_sk)->:tgt
+         ;
+
+attrV = SELECT tgt
+        FROM tupleV:src- (ss_customer_sk)->:tgt
+        ACCUM tgt.@ss = true
+        ;
+
+Start3 = {customer_address.*};
+
+attrV = SELECT tgt
+        FROM Start3:src-(ca_address_sk)->:tgt
+        WHERE src.ca_state IN ("KY","GA","NM")
+       ;
+
+
+tupleV = SELECT tgt
+         FROM attrV:src- (c_current_addr_sk)->:tgt
+         ;
+
+tupleV = SELECT src
+         FROM tupleV:src- (c_customer_sk)->:tgt
+         WHERE tgt.@ss AND NOT tgt.@cs AND NOT tgt.@ws
+         ;
+
+
+//Collection
+
+attrV = SELECT tgt
+        FROM tupleV:src- (c_current_cdemo_sk)->:tgt
+        ACCUM tgt.@cnt += 1
+        ;
+
+attrV = SELECT src
+        FROM attrV:src- (cd_demo_sk)->:tgt
+        ACCUM @@result3 += (tgt.cd_gender,tgt.cd_marital_status,tgt.cd_education_status,tgt.cd_purchase_estimate, tgt.cd_credit_rating -> src.@cnt)
+        ;
+
+}
+
+INSTALL QUERY q69

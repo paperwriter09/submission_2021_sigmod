@@ -1,0 +1,47 @@
+USE GRAPH tpch
+
+DROP QUERY q11
+
+CREATE QUERY q11() FOR GRAPH tpch {
+SumAccum<double> @sumTotalCost;
+SumAccum<double> @@totalCost;
+
+
+Start = {nation.*};
+
+// Reduction
+
+    attrV (ANY) = SELECT tgt
+                  FROM Start:src - (N_NATIONKEY:e) -> :tgt
+                  WHERE src.N_NAME == "GERMANY"
+                  ;
+
+    tupleV (ANY) = SELECT tgt
+                   FROM attrV:src - (S_NATIONKEY:e) -> :tgt
+                   ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (S_SUPPKEY:e) -> :tgt
+            ;
+
+    tupleV = SELECT tgt
+             FROM attrV:src - (PS_SUPPKEY:e) -> :tgt
+             ;
+
+    attrV = SELECT tgt
+            FROM tupleV:src - (PS_PARTKEY:e) -> :tgt
+            ACCUM tgt.@sumTotalCost += src.PS_SUPPLYCOST * src.PS_AVAILQTY 
+            POST-ACCUM @@totalCost += tgt.@sumTotalCost
+            ;
+    
+// Collection
+    attrV = SELECT src
+            FROM attrV:src
+            WHERE src.@sumTotalCost > @@totalCost * 0.00000133333 // 0.0001000000 divide by SF
+            ;
+
+
+
+}
+
+INSTALL QUERY q11

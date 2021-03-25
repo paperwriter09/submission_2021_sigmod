@@ -1,0 +1,37 @@
+USE GRAPH tpch
+
+DROP QUERY q22
+
+CREATE QUERY q22() FOR GRAPH tpch {
+GroupByAccum<int CNTRYCODE, SumAccum<int> NUMCUST, SumAccum<double> TOTACCTBAL> @@result; // <contrycode -> num_customers, sum_acctbal>
+AvgAccum @@avgAcctbal;
+
+
+Start = {customer.*};
+
+// Reduction
+
+    tupleV = SELECT src
+            FROM Start:src
+            WHERE (src.C_PHONE LIKE "13%" OR src.C_PHONE LIKE "31%" OR src.C_PHONE LIKE "23%" OR src.C_PHONE LIKE "29%" OR src.C_PHONE LIKE "30%" OR src.C_PHONE LIKE "18%" OR src.C_PHONE LIKE "17%") AND src.C_ACCTBAL > 0.00
+            ACCUM @@avgAcctbal += src.C_ACCTBAL
+            ;
+
+// Collection
+    tupleV = SELECT src
+            FROM tupleV:src - (C_CUSTKEY:e) -> :tgt
+            WHERE tgt.outdegree("O_CUSTKEY") == 0 AND src.C_ACCTBAL > @@avgAcctbal
+            POST-ACCUM CASE WHEN src.C_PHONE LIKE "13%" THEN @@result += (13 -> 1, src.C_ACCTBAL)
+                      WHEN src.C_PHONE LIKE "31%" THEN @@result += (31 -> 1, src.C_ACCTBAL)
+                      WHEN src.C_PHONE LIKE "23%" THEN @@result += (23 -> 1, src.C_ACCTBAL)
+                      WHEN src.C_PHONE LIKE "29%" THEN @@result += (29 -> 1, src.C_ACCTBAL)
+                      WHEN src.C_PHONE LIKE "30%" THEN @@result += (30 -> 1, src.C_ACCTBAL)
+                      WHEN src.C_PHONE LIKE "18%" THEN @@result += (18 -> 1, src.C_ACCTBAL)
+                      WHEN src.C_PHONE LIKE "17%" THEN @@result += (17 -> 1, src.C_ACCTBAL)
+                END
+            ;
+
+
+}
+
+INSTALL QUERY q22
