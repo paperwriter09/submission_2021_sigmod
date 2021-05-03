@@ -4,7 +4,6 @@ DROP QUERY q58
 
 CREATE QUERY q58() FOR GRAPH tpcds {
 SumAccum<double> @ss_item_rev, @cs_item_rev, @ws_item_rev, @ss_dev, @cs_dev, @ws_dev, @avg_all;
-OrAccum @d_filter;
 
 //Reduction
 Start = {date_dim.*};
@@ -19,106 +18,89 @@ Start = {date_dim.*};
                   ;
 
 
-   attrd = SELECT tgt
+   attrV = SELECT tgt
            FROM tupleV:src- (d_date_sk)->:tgt
            ;
 
    tupless = SELECT tgt
-             FROM attrd:src - (ss_sold_date_sk)->:tgt
-             ACCUM tgt.@d_filter = true
-             ;
+            FROM attrV:src - (ss_sold_date_sk)->:tgt
+            ;
 
-   attrV = SELECT tgt
-           FROM tupless:src - (ss_item_sk) -> :tgt
-           ;
+   tuplecs = SELECT tgt
+            FROM attrV:src - (cs_sold_date_sk)->:tgt
+            ;
+
+   tuplews = SELECT tgt
+            FROM attrV:src - (ws_sold_date_sk)->:tgt
+            ;
+
+//Collection
+
+attrV = SELECT tgt
+        FROM tupless:src - (ss_item_sk) -> :tgt
+        ACCUM CASE WHEN src.ss_ext_sales_price > -1000000.0
+                   THEN tgt.@ss_item_rev += src.ss_ext_sales_price
+              END
+        ;
+
 
 tupleV = SELECT tgt
          FROM attrV:src - (i_item_sk) -> :tgt
+         ACCUM tgt.@ss_item_rev = src.@ss_item_rev
          ;
+
 
 attrss = SELECT tgt
          FROM tupleV:src - (i_item_id) -> :tgt
+         ACCUM tgt.@ss_item_rev += src.@ss_item_rev
          ;
 
-   tuplecs = SELECT tgt
-             FROM attrd:src - (cs_sold_date_sk)->:tgt
-             ACCUM tgt.@d_filter = true
-             ;
-   
-   attrV = SELECT tgt
-           FROM tuplecs:src - (cs_item_sk) -> :tgt
+attrV = SELECT tgt
+        FROM tuplecs:src - (cs_item_sk) -> :tgt
+        ACCUM CASE WHEN src.cs_ext_sales_price > -1000000.0
+                   THEN tgt.@cs_item_rev += src.cs_ext_sales_price
+              END
        ;
+
 
 tupleV = SELECT tgt
          FROM attrV:src - (i_item_sk) -> :tgt
+         ACCUM tgt.@cs_item_rev = src.@cs_item_rev
          ;
 
 
 attrcs = SELECT tgt
          FROM tupleV:src - (i_item_id) -> :tgt
+         ACCUM tgt.@cs_item_rev += src.@cs_item_rev
          ;
-
-   tuplews = SELECT tgt
-             FROM attrd:src - (ws_sold_date_sk)->:tgt
-             ACCUM tgt.@d_filter = true
-             ;
 
 attrV = SELECT tgt
         FROM tuplews:src - (ws_item_sk) -> :tgt
+        ACCUM CASE WHEN src.ws_ext_sales_price > -1000000.0
+                   THEN tgt.@ws_item_rev += src.ws_ext_sales_price
+              END
         ;
+
 
 tupleV = SELECT tgt
          FROM attrV:src - (i_item_sk) -> :tgt
+         ACCUM tgt.@ws_item_rev = src.@ws_item_rev
          ;
+
 
 attrws = SELECT tgt
          FROM tupleV:src - (i_item_id) -> :tgt
+         ACCUM tgt.@ws_item_rev += src.@ws_item_rev
          ;
 
 attrV = attrss INTERSECT attrcs INTERSECT attrws;
 
-//Collection
-tupleV = SELECT tgt
-         FROM attrV:src - (i_item_id) -> :tgt
-         ;
-
-attrV = SELECT tgt
-        FROM tupleV:src - (i_item_sk) -> :tgt
-        ;
-
-attrV = SELECT src
-        FROM attrV:src - ((ss_item_sk|cs_item_sk|ws_item_sk):e) -> :tgt
-        WHERE tgt.@d_filter
-        ACCUM CASE e.type
-           WHEN "ss_item_sk" THEN
-              CASE WHEN tgt.ss_ext_sales_price > -1000000.0
-                   THEN src.@ss_item_rev += tgt.ss_ext_sales_price END
-           WHEN "cs_item_sk" THEN
-              CASE WHEN tgt.cs_ext_sales_price > -1000000.0
-                   THEN src.@cs_item_rev += tgt.cs_ext_sales_price END
-           WHEN "ws_item_sk" THEN
-              CASE WHEN tgt.ws_ext_sales_price > -1000000.0
-                   THEN src.@ws_item_rev += tgt.ws_ext_sales_price END
-        END
-        ;
-
-tupleV = SELECT tgt
-         FROM attrV:src - (i_item_sk) -> :tgt
-         ACCUM tgt.@ss_item_rev = src.@ss_item_rev,
-               tgt.@cs_item_rev = src.@cs_item_rev,
-               tgt.@ws_item_rev = src.@ws_item_rev
-           ;
-
-
-attrV = SELECT tgt
-         FROM tupleV:src - (i_item_id) -> :tgt
-         ACCUM tgt.@ss_item_rev += src.@ss_item_rev,
-               tgt.@cs_item_rev += src.@cs_item_rev,
-               tgt.@ws_item_rev += src.@ws_item_rev 
-         HAVING (tgt.@ss_item_rev >= 0.9*tgt.@cs_item_rev AND tgt.@ss_item_rev <= 1.1*tgt.@cs_item_rev) AND (tgt.@ss_item_rev >= 0.9*tgt.@ws_item_rev AND tgt.@ss_item_rev <= 1.1*tgt.@ws_item_rev) AND
-              (tgt.@cs_item_rev >= 0.9*tgt.@ss_item_rev AND tgt.@cs_item_rev <= 1.1*tgt.@ss_item_rev) AND (tgt.@cs_item_rev >= 0.9*tgt.@ws_item_rev AND tgt.@cs_item_rev <= 1.1*tgt.@ws_item_rev) AND
-              (tgt.@ws_item_rev >= 0.9*tgt.@ss_item_rev AND tgt.@ws_item_rev <= 1.1*tgt.@ss_item_rev) AND (tgt.@ws_item_rev >= 0.9*tgt.@cs_item_rev AND tgt.@ws_item_rev <= 1.1*tgt.@cs_item_rev)
-          ;
+attrV = SELECT v
+        FROM attrV:v
+        WHERE (v.@ss_item_rev >= 0.9*v.@cs_item_rev AND v.@ss_item_rev <= 1.1*v.@cs_item_rev) AND (v.@ss_item_rev >= 0.9*v.@ws_item_rev AND v.@ss_item_rev <= 1.1*v.@ws_item_rev) AND
+              (v.@cs_item_rev >= 0.9*v.@ss_item_rev AND v.@cs_item_rev <= 1.1*v.@ss_item_rev) AND (v.@cs_item_rev >= 0.9*v.@ws_item_rev AND v.@cs_item_rev <= 1.1*v.@ws_item_rev) AND
+              (v.@ws_item_rev >= 0.9*v.@ss_item_rev AND v.@ws_item_rev <= 1.1*v.@ss_item_rev) AND (v.@ws_item_rev >= 0.9*v.@cs_item_rev AND v.@ws_item_rev <= 1.1*v.@cs_item_rev)
+              ;
 
 attrV = SELECT v
         FROM attrV:v

@@ -37,6 +37,9 @@ Start = {customer.*};
              ACCUM tgt.@revenue = src.@revenue
              ;
 
+    // Output
+   //PRINT tupleV.O_ORDERKEY, tupleV.@revenue, datetime_format(tupleV.O_ORDERDATE,"%Y-%m-%d"), tupleV.O_SHIPPRIORITY;
+
 
 }
 

@@ -5,7 +5,6 @@ DROP QUERY q83
 CREATE QUERY q83() FOR GRAPH tpcds {
 SumAccum<int> @sr_item_qty, @cr_item_qty, @wr_item_qty;
 SumAccum<double> @sr_dev, @cr_dev, @wr_dev, @avg_all;
-OrAccum @d_filter;
 
 //Reduction
 Start = {date_dim.*};
@@ -20,117 +19,93 @@ Start = {date_dim.*};
                   ;
 
 
-   attrd = SELECT tgt
+   attrV = SELECT tgt
            FROM tupleV:src- (d_date_sk)->:tgt
            ;
 
    tupless = SELECT tgt
-             FROM attrd:src - (sr_returned_date_sk)->:tgt
-             ACCUM tgt.@d_filter = true
-              ;
-   
-   attrV = SELECT tgt
-           FROM tupless:src - (sr_item_sk) -> :tgt
-           ;
+            FROM attrV:src - (sr_returned_date_sk)->:tgt
+            ;
+
+   tuplecs = SELECT tgt
+            FROM attrV:src - (cr_returned_date_sk)->:tgt
+            ;
+
+   tuplews = SELECT tgt
+            FROM attrV:src - (wr_returned_date_sk)->:tgt
+            ;
+
+
+//Collection
+
+attrV = SELECT tgt
+        FROM tupless:src - (sr_item_sk) -> :tgt
+        ACCUM CASE WHEN src.sr_return_quantity != -1
+                   THEN tgt.@sr_item_qty += src.sr_return_quantity
+              END
+        ;
+
 
 tupleV = SELECT tgt
          FROM attrV:src - (i_item_sk) -> :tgt
+         ACCUM tgt.@sr_item_qty = src.@sr_item_qty
          ;
 
 
 attrss = SELECT tgt
          FROM tupleV:src - (i_item_id) -> :tgt
+         ACCUM tgt.@sr_item_qty += src.@sr_item_qty
          ;
 
-
-   tuplecs = SELECT tgt
-            FROM attrd:src - (cr_returned_date_sk)->:tgt
-            ACCUM tgt.@d_filter = true
-            ;
-
 attrV = SELECT tgt
-           FROM tuplecs:src - (cr_item_sk) -> :tgt
-           ;
+        FROM tuplecs:src - (cr_item_sk) -> :tgt
+        ACCUM CASE WHEN src.cr_return_quantity != -1
+                   THEN tgt.@cr_item_qty += src.cr_return_quantity
+              END
+        ;
+
 
 tupleV = SELECT tgt
          FROM attrV:src - (i_item_sk) -> :tgt
+         ACCUM tgt.@cr_item_qty = src.@cr_item_qty
          ;
 
 
 attrcs = SELECT tgt
          FROM tupleV:src - (i_item_id) -> :tgt
+         ACCUM tgt.@cr_item_qty += src.@cr_item_qty
          ;
 
-
-   tuplews = SELECT tgt
-            FROM attrd:src - (wr_returned_date_sk)->:tgt
-            ACCUM tgt.@d_filter = true
-             ;
-
 attrV = SELECT tgt
-           FROM tuplews:src - (wr_item_sk) -> :tgt
-           ;
+        FROM tuplews:src - (wr_item_sk) -> :tgt
+        ACCUM CASE WHEN src.wr_return_quantity != -1
+                   THEN tgt.@wr_item_qty += src.wr_return_quantity
+        END
+        ;
+
 
 tupleV = SELECT tgt
          FROM attrV:src - (i_item_sk) -> :tgt
+         ACCUM tgt.@wr_item_qty = src.@wr_item_qty
          ;
 
 
 attrws = SELECT tgt
          FROM tupleV:src - (i_item_id) -> :tgt
+         ACCUM tgt.@wr_item_qty += src.@wr_item_qty
          ;
-
 
 attrV = attrss INTERSECT attrcs INTERSECT attrws;
-
-//Collection
-
-tupleV = SELECT tgt
-         FROM attrV:src - (i_item_id) -> :tgt
-         ;
-
-attrV = SELECT tgt
-        FROM tupleV:src - (i_item_sk) -> :tgt
-        ;
-
-attrV = SELECT src
-        FROM attrV:src - ((sr_item_sk|cr_item_sk|wr_item_sk):e) -> :tgt
-        ACCUM CASE e.type
-           WHEN "sr_item_sk" THEN
-              CASE WHEN tgt.sr_return_quantity != -1
-                   THEN src.@sr_item_qty += tgt.sr_return_quantity
+  
+attrV = SELECT v
+        FROM attrV:v
+        ACCUM CASE WHEN v.@sr_item_qty != 0 AND v.@cr_item_qty != 0 AND v.@wr_item_qty != 0 THEN
+              v.@sr_dev = v.@sr_item_qty/(v.@sr_item_qty+v.@cr_item_qty+v.@wr_item_qty)/3 * 100,
+              v.@cr_dev = v.@cr_item_qty/(v.@sr_item_qty+v.@cr_item_qty+v.@wr_item_qty)/3 * 100,
+              v.@wr_dev = v.@wr_item_qty/(v.@sr_item_qty+v.@cr_item_qty+v.@wr_item_qty)/3 * 100,
+              v.@avg_all = (v.@sr_item_qty+v.@cr_item_qty+v.@wr_item_qty)/3
               END
-           WHEN "cr_item_sk" THEN
-              CASE WHEN tgt.cr_return_quantity != -1
-                   THEN src.@cr_item_qty += tgt.cr_return_quantity
-              END
-           WHEN "wr_item_sk" THEN   
-              CASE WHEN tgt.wr_return_quantity != -1
-                   THEN src.@wr_item_qty += tgt.wr_return_quantity
-              END
-        END
-        ;
-
-tupleV = SELECT tgt
-         FROM attrV:src - (i_item_sk) -> :tgt
-         ACCUM tgt.@sr_item_qty = src.@sr_item_qty,
-               tgt.@cr_item_qty = src.@cr_item_qty,
-               tgt.@wr_item_qty = src.@wr_item_qty
-         ;
-
-
-attrV = SELECT tgt
-         FROM tupleV:src - (i_item_id) -> :tgt
-         ACCUM tgt.@sr_item_qty += src.@sr_item_qty,
-               tgt.@cr_item_qty += src.@cr_item_qty,
-               tgt.@wr_item_qty += src.@wr_item_qty
-         POST-ACCUM CASE WHEN tgt.@sr_item_qty != 0 AND tgt.@cr_item_qty != 0 AND tgt.@wr_item_qty != 0 THEN
-              tgt.@sr_dev = tgt.@sr_item_qty/(tgt.@sr_item_qty+tgt.@cr_item_qty+tgt.@wr_item_qty)/3 * 100,
-              tgt.@cr_dev = tgt.@cr_item_qty/(tgt.@sr_item_qty+tgt.@cr_item_qty+tgt.@wr_item_qty)/3 * 100,
-              tgt.@wr_dev = tgt.@wr_item_qty/(tgt.@sr_item_qty+tgt.@cr_item_qty+tgt.@wr_item_qty)/3 * 100,
-              tgt.@avg_all = (tgt.@sr_item_qty+tgt.@cr_item_qty+tgt.@wr_item_qty)/3
-              END
-          ;
+              ;
 
 }
 
